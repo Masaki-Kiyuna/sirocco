@@ -636,7 +636,7 @@ int
 check_grid ()
 {
   int ndom, n;
-  double lambda_t, nh;
+  double lambda_t;
   double delta_r, delta_x, delta_z, delta_vz, delta_vx;
   double v1[3], v2[3];
   WindPtr one;
@@ -652,9 +652,6 @@ check_grid ()
     one = &wmain[xplasma->nplasma];
     ndom = one->ndom;
 
-    /* Hydrogen density, ne should be roughly this */
-    nh = xplasma->rho * rho2nh;
-
     /* thermal speed */
 //OLD    vth = sqrt (1.5 * BOLTZMANN * xplasma->t_e / MPROT);
 
@@ -667,8 +664,8 @@ check_grid ()
 
     delta_r = sqrt (delta_x * delta_x + delta_z * delta_z);
 
-    /* Thomson mean free path 1/sigma*nh */
-    lambda_t = 1.0 / THOMPSON * nh;
+    /* Thomson mean free path */
+    lambda_t = xplasma->ne > 0.0 ? 1.0 / (THOMPSON * xplasma->ne) : VERY_BIG;
 
     /* get the velocity at cell corner and cell edge in x and z */
     model_velocity (ndom, one->x, v1);
