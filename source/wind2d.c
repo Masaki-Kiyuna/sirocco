@@ -649,7 +649,7 @@ check_grid ()
   {
     /* get the relevant pointers for this cell */
     xplasma = &plasmamain[n];
-    one = &wmain[xplasma->nplasma];
+    one = &wmain[xplasma->nwind];
     ndom = one->ndom;
 
     /* thermal speed */
