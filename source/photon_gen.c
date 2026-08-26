@@ -88,6 +88,10 @@ define_phot (p, f1, f2, nphot_tot, ioniz_or_extract, iwind, freq_sampling)
   long nphot_tot_rad, nphot_tot_k;
   nphot_k = nphot_tot_k = natural_weight = iphot_start = 0;     // Initialize to avoid compiler warnings
 
+#if P2_PROVENANCE_DIAGNOSTIC
+  p2_provenance_reset ();
+#endif
+
   /* if we are generating nonradiative kpackets, then we need to subtract 
      off the fraction reserved for k-packets */
   if (geo.nonthermal && (geo.rt_mode == RT_MODE_MACRO) && (ioniz_or_extract == CYCLE_IONIZ))
@@ -204,6 +208,7 @@ define_phot (p, f1, f2, nphot_tot, ioniz_or_extract, iwind, freq_sampling)
     p[n].line_res = NRES_NOT_SET;
 #if P2_PROVENANCE_DIAGNOSTIC
     p[n].diag_last_matom_nres = NRES_NOT_SET;
+    p2_provenance_seed (&p[n]);
 #endif
     p[n].frame = F_OBSERVER;
     if (geo.reverb != REV_NONE && p[n].path < 0.0)      // SWM - Set path lengths for disk, star etc.
@@ -456,6 +461,18 @@ iwind = -1 	Don't generate any wind photons at all
     matom_emiss_report ();
   }
 
+#if P2_WIND_ONLY_EXTRACT_DIAGNOSTIC
+  /* PRIVATE P2 DIAGNOSTIC: importance-sample only the wind/macro/k-packet
+     component during detailed-spectrum cycles. The converged plasma and all
+     transport physics are unchanged. */
+  if (ioniz_or_extract == CYCLE_EXTRACT)
+  {
+    geo.f_star = geo.f_disk = geo.f_bl = geo.f_agn = 0.0;
+    Log ("!!P2WindOnlyExtract f_wind %.17e f_matom %.17e f_kpkt %.17e\n",
+         geo.f_wind, geo.f_matom, geo.f_kpkt);
+  }
+#endif
+
   geo.f_tot = geo.f_star + geo.f_disk + geo.f_bl + geo.f_wind + geo.f_kpkt + geo.f_matom + geo.f_agn;
   geo.lum_tot = geo.lum_star + geo.lum_disk + geo.lum_bl + geo.lum_agn + geo.lum_wind;
   /* Store the 3 variables that have to remain the same to avoid reinitialization */
@@ -643,6 +660,13 @@ xmake_phot (p, f1, f2, ioniz_or_extract, iwind, weight, iphot_start, nphotons)
 
   if (nphot < nphotons)
   {
+#if P2_WIND_ONLY_EXTRACT_DIAGNOSTIC
+    if (ioniz_or_extract == CYCLE_EXTRACT && nmatom > 0)
+      nmatom += (nphotons - nphot);
+    else if (ioniz_or_extract == CYCLE_EXTRACT && nkpkt > 0)
+      nkpkt += (nphotons - nphot);
+    else
+#endif
     if (ndisk > 0)
       ndisk += (nphotons - nphot);
     else if (nwind > 0)
@@ -673,6 +697,14 @@ xmake_phot (p, f1, f2, ioniz_or_extract, iwind, weight, iphot_start, nphotons)
         photo_gen_star (p, geo.rstar, geo.tstar, weight, f1, f2, geo.star_spectype, iphot_start, nphot);
       else
         photo_gen_star (p, geo.rstar, geo.tstar, weight, f1, f2, geo.star_ion_spectype, iphot_start, nphot);
+#if P2_HBETA_INJECTION_DIAGNOSTIC
+      if (ioniz_or_extract == CYCLE_IONIZ)
+      {
+        for (nn = 0; nn < nphot; nn++)
+          p[iphot_start + nn].freq = VLIGHT * 1e8 / 4859.70;
+        Log ("!!P2HbetaInjection replaced %d ionization-source frequencies with 4859.70 Angstrom\n", nphot);
+      }
+#endif
     }
     iphot_start += nphot;
   }

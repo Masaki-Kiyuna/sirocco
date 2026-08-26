@@ -96,10 +96,6 @@ trans_phot (WindPtr w, PhotPtr p, int iextract)
 
   timer_t0 = init_timer_t0 ();
 
-#if P2_PROVENANCE_DIAGNOSTIC
-  p2_provenance_reset ();
-#endif
-
   for (nphot = 0; nphot < NPHOT; nphot++)
   {
     p[nphot].np = nphot;
@@ -133,6 +129,9 @@ trans_phot (WindPtr w, PhotPtr p, int iextract)
     }
 
     trans_phot_single (w, &p[nphot], iextract);
+#if P2_PROVENANCE_DIAGNOSTIC
+    p2_provenance_record_fate (&p[nphot]);
+#endif
   }
 
   Log ("\n");

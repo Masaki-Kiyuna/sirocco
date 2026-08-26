@@ -514,7 +514,9 @@ double sobolev(WindPtr one, double x[], double den_ion, struct lines *lptr, doub
 int scatter(PhotPtr p, int *nres, int *nnscat);
 #if P2_PROVENANCE_DIAGNOSTIC
 void p2_provenance_reset(void);
+void p2_provenance_seed(PhotPtr p);
 void p2_provenance_record(PhotPtr p, int activation_nres, int deactivation_nres, double activation_weight);
+void p2_provenance_record_fate(PhotPtr p);
 void p2_provenance_report(void);
 #endif
 /* reverb.c */

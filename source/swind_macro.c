@@ -108,7 +108,7 @@ macro_summary (w, rootname, ochoice)
 
   /* get input from the user */
   rdint ("Detailed cell info (0), levels (1) \
-emissivities (2) P_escapes (3) Detailed Pops (4) taus (5) estimators (6)", &choose);
+emissivities (2) P_escapes (3) Detailed Pops (4) Balmer taus (5) estimators (6) generic H tau (7)", &choose);
 
   if (choose == 0)
   {
@@ -197,6 +197,50 @@ emissivities (2) P_escapes (3) Detailed Pops (4) taus (5) estimators (6)", &choo
       level_tauoverview (nlev, w, rootname, ochoice);
       rdint ("Upper level tau to view (-1 - back, Halpha = 3):", &nlev);
     }
+  }
+
+  /* PRIVATE P2 DIAGNOSTIC: read-only Sobolev tau for any H I macro transition. */
+  else if (choose == 7)
+  {
+    int lower_level = 1;
+    int upper_level = 2;
+    int nline = 0;
+    int found = 0;
+    int n;
+    char filename[LINELENGTH];
+
+    rdint ("Upper H I level", &upper_level);
+    rdint ("Lower H I level", &lower_level);
+    while (nline < nlines && found == 0)
+    {
+      if (lin_ptr[nline]->z == 1 && lin_ptr[nline]->istate == 1 &&
+          lin_ptr[nline]->levu == upper_level && lin_ptr[nline]->levl == lower_level)
+        found = 1;
+      else
+        nline++;
+    }
+
+    if (found == 0)
+    {
+      Error ("macro_summary: Could not find H I transition %d-%d\n", upper_level, lower_level);
+      return (-1);
+    }
+
+    for (n = 0; n < NDIM2; n++)
+    {
+      aaa[n] = 0.0;
+      if (w[n].inwind >= 0 && w[n].nplasma >= 0 && plasmamain[w[n].nplasma].ne > 1.0)
+      {
+        PlasmaPtr xplasma = &plasmamain[w[n].nplasma];
+        aaa[n] = sobolev (&w[n], w[n].x, xplasma->density[lin_ptr[nline]->nion],
+                          lin_ptr[nline], w[n].dvds_ave);
+      }
+    }
+
+    sprintf (filename, "%s.HI_%d-%d_tau", rootname, upper_level, lower_level);
+    display (filename);
+    if (ochoice)
+      write_array (filename, ochoice);
   }
 
   /* JM 1311 -- add stuff for estimators here */

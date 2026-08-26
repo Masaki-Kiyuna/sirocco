@@ -41,20 +41,114 @@ static double p2_bf_abs_foreign_weight;
 static double p2_bf_abs_line_weight;
 static double p2_bf_abs_other_weight;
 
+#define P2_N_LINE_CHANNELS 8
+#define P2_N_FATES 5
+static const char *p2_line_name[P2_N_LINE_CHANNELS] = { "Lya", "Lyb", "Ha", "Hb", "Hg", "Pa", "other", "nonline" };
+static const char *p2_fate_name[P2_N_FATES] = { "escape", "central", "absorb", "error", "other" };
+static unsigned long p2_line_emit_count[P2_N_LINE_CHANNELS];
+static double p2_line_emit_weight[P2_N_LINE_CHANNELS];
+static unsigned long p2_line_fate_count[P2_N_LINE_CHANNELS][P2_N_FATES];
+static double p2_line_fate_weight[P2_N_LINE_CHANNELS][P2_N_FATES];
+static unsigned long p2_line_conversion_count[P2_N_LINE_CHANNELS][P2_N_LINE_CHANNELS];
+static double p2_line_conversion_weight[P2_N_LINE_CHANNELS][P2_N_LINE_CHANNELS];
+
+static int
+p2_line_channel (int nres)
+{
+  int upper;
+  int lower;
+
+  if (nres < 0 || nres >= nlines || lin_ptr[nres]->z != 1 || lin_ptr[nres]->istate != 1)
+    return (-1);
+
+  upper = lin_ptr[nres]->levu;
+  lower = lin_ptr[nres]->levl;
+  if (upper == 2 && lower == 1)
+    return (0);
+  if (upper == 3 && lower == 1)
+    return (1);
+  if (upper == 3 && lower == 2)
+    return (2);
+  if (upper == 4 && lower == 2)
+    return (3);
+  if (upper == 5 && lower == 2)
+    return (4);
+  if (upper == 4 && lower == 3)
+    return (5);
+  return (6);
+}
+
 void
 p2_provenance_reset (void)
 {
+  int i;
+  int j;
+
   p2_bf_abs_count = p2_bf_abs_central_count = p2_bf_abs_generated_count = 0;
   p2_bf_abs_same_count = p2_bf_abs_foreign_count = 0;
   p2_bf_abs_line_count = p2_bf_abs_other_count = 0;
   p2_bf_abs_weight = p2_bf_abs_central_weight = p2_bf_abs_generated_weight = 0.0;
   p2_bf_abs_same_weight = p2_bf_abs_foreign_weight = 0.0;
   p2_bf_abs_line_weight = p2_bf_abs_other_weight = 0.0;
+  for (i = 0; i < P2_N_LINE_CHANNELS; i++)
+  {
+    p2_line_emit_count[i] = 0;
+    p2_line_emit_weight[i] = 0.0;
+    for (j = 0; j < P2_N_FATES; j++)
+    {
+      p2_line_fate_count[i][j] = 0;
+      p2_line_fate_weight[i][j] = 0.0;
+    }
+    for (j = 0; j < P2_N_LINE_CHANNELS; j++)
+    {
+      p2_line_conversion_count[i][j] = 0;
+      p2_line_conversion_weight[i][j] = 0.0;
+    }
+  }
+}
+
+void
+p2_provenance_seed (PhotPtr p)
+{
+  int channel;
+
+#if P2_HBETA_INJECTION_DIAGNOSTIC
+  int nline;
+  if (((geo.ioniz_or_extract == CYCLE_EXTRACT && geo.star_spectype == SPECTYPE_MONO) ||
+       geo.ioniz_or_extract == CYCLE_IONIZ) && p->origin == PTYPE_STAR)
+  {
+    for (nline = 0; nline < nlines; nline++)
+    {
+      if (p2_line_channel (nline) == 3)
+      {
+        p->diag_last_matom_nres = nline;
+        p2_line_emit_count[3]++;
+        p2_line_emit_weight[3] += p->w;
+        return;
+      }
+    }
+  }
+#endif
+
+  if ((p->origin == PTYPE_WIND || p->origin == PTYPE_WIND_MATOM) && p->nres != NRES_NOT_SET)
+  {
+    p->diag_last_matom_nres = p->nres;
+    channel = p2_line_channel (p->nres);
+    if (channel >= 0)
+    {
+      p2_line_emit_count[channel]++;
+      p2_line_emit_weight[channel] += p->w;
+    }
+  }
 }
 
 void
 p2_provenance_record (PhotPtr p, int activation_nres, int deactivation_nres, double activation_weight)
 {
+  int previous_line_channel;
+  int deactivation_line_channel;
+
+  previous_line_channel = p2_line_channel (p->diag_last_matom_nres);
   if (activation_nres > NLINES)
   {
     p2_bf_abs_count++;
@@ -97,12 +191,53 @@ p2_provenance_record (PhotPtr p, int activation_nres, int deactivation_nres, dou
     }
   }
 
+  deactivation_line_channel = p2_line_channel (deactivation_nres);
+  if (previous_line_channel >= 0)
+  {
+    int output_channel = deactivation_line_channel >= 0 ? deactivation_line_channel : P2_N_LINE_CHANNELS - 1;
+    p2_line_conversion_count[previous_line_channel][output_channel]++;
+    p2_line_conversion_weight[previous_line_channel][output_channel] += activation_weight;
+  }
+  if (p->w > 0.0 && deactivation_line_channel >= 0)
+  {
+    p2_line_emit_count[deactivation_line_channel]++;
+    p2_line_emit_weight[deactivation_line_channel] += p->w;
+  }
+
   p->diag_last_matom_nres = p->w > 0.0 ? deactivation_nres : NRES_NOT_SET;
+}
+
+void
+p2_provenance_record_fate (PhotPtr p)
+{
+  int channel;
+  int fate;
+
+  channel = p2_line_channel (p->diag_last_matom_nres);
+  if (channel < 0)
+    return;
+
+  if (p->istat == P_ESCAPE)
+    fate = 0;
+  else if (p->istat == P_HIT_STAR)
+    fate = 1;
+  else if (p->istat == P_ABSORB || p->istat == P_ADIABATIC)
+    fate = 2;
+  else if (p->istat == P_ERROR || p->istat == P_ERROR_MATOM || p->istat == P_REPOSITION_ERROR)
+    fate = 3;
+  else
+    fate = 4;
+
+  p2_line_fate_count[channel][fate]++;
+  p2_line_fate_weight[channel][fate] += p->w;
 }
 
 void
 p2_provenance_report (void)
 {
+  int i;
+  int j;
+
   Log ("!!P2Provenance rank %d cycle_type %d cycle %d bf_abs %lu central %lu generated %lu same_bf %lu foreign_bf %lu line %lu other %lu "
        "weight %.17e central_weight %.17e generated_weight %.17e same_weight %.17e foreign_weight %.17e line_weight %.17e other_weight %.17e\n",
        rank_global, geo.ioniz_or_extract, geo.ioniz_or_extract == CYCLE_IONIZ ? geo.wcycle : geo.pcycle,
@@ -110,6 +245,26 @@ p2_provenance_report (void)
        p2_bf_abs_foreign_count, p2_bf_abs_line_count, p2_bf_abs_other_count, p2_bf_abs_weight,
        p2_bf_abs_central_weight, p2_bf_abs_generated_weight, p2_bf_abs_same_weight,
        p2_bf_abs_foreign_weight, p2_bf_abs_line_weight, p2_bf_abs_other_weight);
+  for (i = 0; i < P2_N_LINE_CHANNELS; i++)
+  {
+    Log ("!!P2Line rank %d cycle_type %d cycle %d line %s emit %lu emit_weight %.17e",
+         rank_global, geo.ioniz_or_extract, geo.ioniz_or_extract == CYCLE_IONIZ ? geo.wcycle : geo.pcycle,
+         p2_line_name[i], p2_line_emit_count[i], p2_line_emit_weight[i]);
+    for (j = 0; j < P2_N_FATES; j++)
+      Log (" %s %lu %s_weight %.17e", p2_fate_name[j], p2_line_fate_count[i][j],
+           p2_fate_name[j], p2_line_fate_weight[i][j]);
+    Log ("\n");
+  }
+  for (i = 0; i < P2_N_LINE_CHANNELS; i++)
+  {
+    for (j = 0; j < P2_N_LINE_CHANNELS; j++)
+    {
+      if (p2_line_conversion_count[i][j] > 0)
+        Log ("!!P2LineConversion rank %d cycle_type %d cycle %d from %s to %s count %lu weight %.17e\n",
+             rank_global, geo.ioniz_or_extract, geo.ioniz_or_extract == CYCLE_IONIZ ? geo.wcycle : geo.pcycle,
+             p2_line_name[i], p2_line_name[j], p2_line_conversion_count[i][j], p2_line_conversion_weight[i][j]);
+    }
+  }
 }
 #endif
 

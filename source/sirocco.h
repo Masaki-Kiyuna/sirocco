@@ -1328,7 +1328,15 @@ typedef struct photon
   int nrscat;        /**<  number of resonance scatterings */
   int nmacro;        /**<  number of macro atom interactions */
 
+#ifndef P2_PROVENANCE_DIAGNOSTIC
 #define P2_PROVENANCE_DIAGNOSTIC 1
+#endif
+#ifndef P2_WIND_ONLY_EXTRACT_DIAGNOSTIC
+#define P2_WIND_ONLY_EXTRACT_DIAGNOSTIC 1
+#endif
+#ifndef P2_HBETA_INJECTION_DIAGNOSTIC
+#define P2_HBETA_INJECTION_DIAGNOSTIC 0
+#endif
 #if P2_PROVENANCE_DIAGNOSTIC
   /* PRIVATE P2 DIAGNOSTIC: last radiative macro-atom deactivation process. */
   int diag_last_matom_nres;
