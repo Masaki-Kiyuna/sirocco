@@ -24,6 +24,95 @@
 
 const double MAXDIFF = VCHECK / VLIGHT;
 
+#if P2_PROVENANCE_DIAGNOSTIC
+/* PRIVATE P2 DIAGNOSTIC. It observes packet provenance without drawing RNGs or changing transport. */
+static unsigned long p2_bf_abs_count;
+static unsigned long p2_bf_abs_central_count;
+static unsigned long p2_bf_abs_generated_count;
+static unsigned long p2_bf_abs_same_count;
+static unsigned long p2_bf_abs_foreign_count;
+static unsigned long p2_bf_abs_line_count;
+static unsigned long p2_bf_abs_other_count;
+static double p2_bf_abs_weight;
+static double p2_bf_abs_central_weight;
+static double p2_bf_abs_generated_weight;
+static double p2_bf_abs_same_weight;
+static double p2_bf_abs_foreign_weight;
+static double p2_bf_abs_line_weight;
+static double p2_bf_abs_other_weight;
+
+void
+p2_provenance_reset (void)
+{
+  p2_bf_abs_count = p2_bf_abs_central_count = p2_bf_abs_generated_count = 0;
+  p2_bf_abs_same_count = p2_bf_abs_foreign_count = 0;
+  p2_bf_abs_line_count = p2_bf_abs_other_count = 0;
+  p2_bf_abs_weight = p2_bf_abs_central_weight = p2_bf_abs_generated_weight = 0.0;
+  p2_bf_abs_same_weight = p2_bf_abs_foreign_weight = 0.0;
+  p2_bf_abs_line_weight = p2_bf_abs_other_weight = 0.0;
+}
+
+void
+p2_provenance_record (PhotPtr p, int activation_nres, int deactivation_nres, double activation_weight)
+{
+  if (activation_nres > NLINES)
+  {
+    p2_bf_abs_count++;
+    p2_bf_abs_weight += activation_weight;
+    if (p->diag_last_matom_nres > NLINES)
+    {
+      if (p->diag_last_matom_nres == activation_nres)
+      {
+        p2_bf_abs_same_count++;
+        p2_bf_abs_same_weight += activation_weight;
+      }
+      else
+      {
+        p2_bf_abs_foreign_count++;
+        p2_bf_abs_foreign_weight += activation_weight;
+      }
+    }
+    else if (p->diag_last_matom_nres == NRES_NOT_SET)
+    {
+      if (p->origin_orig == PTYPE_STAR || p->origin_orig == PTYPE_STAR_MATOM)
+      {
+        p2_bf_abs_central_count++;
+        p2_bf_abs_central_weight += activation_weight;
+      }
+      else
+      {
+        p2_bf_abs_generated_count++;
+        p2_bf_abs_generated_weight += activation_weight;
+      }
+    }
+    else if (p->diag_last_matom_nres >= 0 && p->diag_last_matom_nres < NLINES)
+    {
+      p2_bf_abs_line_count++;
+      p2_bf_abs_line_weight += activation_weight;
+    }
+    else
+    {
+      p2_bf_abs_other_count++;
+      p2_bf_abs_other_weight += activation_weight;
+    }
+  }
+
+  p->diag_last_matom_nres = p->w > 0.0 ? deactivation_nres : NRES_NOT_SET;
+}
+
+void
+p2_provenance_report (void)
+{
+  Log ("!!P2Provenance rank %d cycle_type %d cycle %d bf_abs %lu central %lu generated %lu same_bf %lu foreign_bf %lu line %lu other %lu "
+       "weight %.17e central_weight %.17e generated_weight %.17e same_weight %.17e foreign_weight %.17e line_weight %.17e other_weight %.17e\n",
+       rank_global, geo.ioniz_or_extract, geo.ioniz_or_extract == CYCLE_IONIZ ? geo.wcycle : geo.pcycle,
+       p2_bf_abs_count, p2_bf_abs_central_count, p2_bf_abs_generated_count, p2_bf_abs_same_count,
+       p2_bf_abs_foreign_count, p2_bf_abs_line_count, p2_bf_abs_other_count, p2_bf_abs_weight,
+       p2_bf_abs_central_weight, p2_bf_abs_generated_weight, p2_bf_abs_same_weight,
+       p2_bf_abs_foreign_weight, p2_bf_abs_line_weight, p2_bf_abs_other_weight);
+}
+#endif
+
 /**********************************************************/
 /**
  * @brief     calculate the distance in the observer frame a photon can travel
@@ -901,6 +990,10 @@ scatter (p, nres, nnscat)
   PlasmaPtr xplasma;
   MacroPtr mplasma;
   int ndom;
+#if P2_PROVENANCE_DIAGNOSTIC
+  int p2_activation_nres;
+  double p2_activation_weight;
+#endif
 
 
   /* get wind+plasma ptrs and domain number */
@@ -927,6 +1020,10 @@ scatter (p, nres, nnscat)
     Error ("scatter: observer to local frame error (begin)\n");
   }
   freq_comoving = p->freq;
+#if P2_PROVENANCE_DIAGNOSTIC
+  p2_activation_nres = *nres;
+  p2_activation_weight = p->w;
+#endif
 
 
 
@@ -1173,6 +1270,13 @@ scatter (p, nres, nnscat)
   }
 
   /* END OF SECTION FOR HANDLING ASPECTS OF SCATTERING PROCESSES THAT ARE SPECIFIC TO MACRO-ATOMS. */
+
+#if P2_PROVENANCE_DIAGNOSTIC
+  if (geo.rt_mode == RT_MODE_MACRO && p2_activation_nres != NRES_ES)
+  {
+    p2_provenance_record (p, p2_activation_nres, *nres, p2_activation_weight);
+  }
+#endif
 
   /* Set nres  correctly and make sure the frequency is correct
      for a resonanant scatter. Note that nres may have changed especially for macro-atoms */

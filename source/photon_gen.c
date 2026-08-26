@@ -202,6 +202,9 @@ define_phot (p, f1, f2, nphot_tot, ioniz_or_extract, iwind, freq_sampling)
     p[n].np = n;
     p[n].ds = 0;
     p[n].line_res = NRES_NOT_SET;
+#if P2_PROVENANCE_DIAGNOSTIC
+    p[n].diag_last_matom_nres = NRES_NOT_SET;
+#endif
     p[n].frame = F_OBSERVER;
     if (geo.reverb != REV_NONE && p[n].path < 0.0)      // SWM - Set path lengths for disk, star etc.
       simple_paths_gen_phot (&p[n]);

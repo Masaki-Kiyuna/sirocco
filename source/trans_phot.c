@@ -96,6 +96,10 @@ trans_phot (WindPtr w, PhotPtr p, int iextract)
 
   timer_t0 = init_timer_t0 ();
 
+#if P2_PROVENANCE_DIAGNOSTIC
+  p2_provenance_reset ();
+#endif
+
   for (nphot = 0; nphot < NPHOT; nphot++)
   {
     p[nphot].np = nphot;
@@ -132,6 +136,10 @@ trans_phot (WindPtr w, PhotPtr p, int iextract)
   }
 
   Log ("\n");
+
+#if P2_PROVENANCE_DIAGNOSTIC
+  p2_provenance_report ();
+#endif
 
   print_timer_duration ("!!sirocco: photon transport completed in", timer_t0);
   //XXXX Delete when understand what is going on with state machines

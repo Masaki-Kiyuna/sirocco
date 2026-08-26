@@ -1328,6 +1328,12 @@ typedef struct photon
   int nrscat;        /**<  number of resonance scatterings */
   int nmacro;        /**<  number of macro atom interactions */
 
+#define P2_PROVENANCE_DIAGNOSTIC 1
+#if P2_PROVENANCE_DIAGNOSTIC
+  /* PRIVATE P2 DIAGNOSTIC: last radiative macro-atom deactivation process. */
+  int diag_last_matom_nres;
+#endif
+
   int nres;          /**< For line scattering, indicates the actual transition;
                                    for continuum scattering, meaning
                                    depends on matom vs non-matom. See headers of emission.c

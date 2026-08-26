@@ -54,6 +54,9 @@ init_dummy_phot (p)
   p->origin = p->origin_orig = PTYPE_DUMMY;
   p->np = -1;
   p->tau = p->ds = 0;
+#if P2_PROVENANCE_DIAGNOSTIC
+  p->diag_last_matom_nres = NRES_NOT_SET;
+#endif
 
   return (0);
 
@@ -100,6 +103,9 @@ stuff_phot (pin, pout)
   pout->nres = pin->nres;
   pout->line_res = pin->line_res;
   pout->nmacro = pin->nmacro;
+#if P2_PROVENANCE_DIAGNOSTIC
+  pout->diag_last_matom_nres = pin->diag_last_matom_nres;
+#endif
   pout->nrscat = pin->nrscat;
   pout->nscat = pin->nscat;
   pout->nnscat = pin->nnscat;
