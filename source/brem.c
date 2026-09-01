@@ -134,6 +134,39 @@ double brem_set[] = {
 };
 
 
+static double
+brem_low_frequency_integral (double alpha_min, double alpha_max)
+{
+  double p1;
+
+  if (alpha_max <= alpha_min)
+    return (0.0);
+
+  p1 = geo.brem_alpha + 1.0;
+  if (p1 == 0.0)
+    return (log (alpha_max) - log (alpha_min));
+
+  return ((pow (alpha_max, p1) - pow (alpha_min, p1)) / p1);
+}
+
+
+static double
+brem_integral_from_floor (double alpha_floor, double alpha)
+{
+  double answer;
+
+  if (alpha <= alpha_floor)
+    return (0.0);
+
+  if (alpha <= BREM_ALPHAMIN)
+    return (brem_low_frequency_integral (alpha_floor, alpha));
+
+  answer = brem_low_frequency_integral (alpha_floor, BREM_ALPHAMIN);
+  answer += num_int (brem_d, BREM_ALPHAMIN, alpha, 1e-8);
+  return (answer);
+}
+
+
 
 
 
@@ -189,8 +222,8 @@ get_rand_brem (freqmin, freqmax)
 //    cdf_brem_lo = qromb (brem_d, brem_alpha_tiny, BREM_ALPHAMIN, 1e-8) / cdf_brem_tot;  //position in the full cdf of low frequcny boundary
 //    cdf_brem_hi = 1. - qromb (brem_d, BREM_ALPHAMAX, BREM_ALPHABIG, 1e-8) / cdf_brem_tot;       //postion in fhe full hi frequcny boundary
 
-    cdf_brem_tot = num_int (brem_d, brem_alpha_tiny, BREM_ALPHABIG, 1e-8);
-    cdf_brem_lo = num_int (brem_d, brem_alpha_tiny, BREM_ALPHAMIN, 1e-8) / cdf_brem_tot;        //position in the full cdf of low frequcny boundary
+    cdf_brem_tot = brem_integral_from_floor (brem_alpha_tiny, BREM_ALPHABIG);
+    cdf_brem_lo = brem_low_frequency_integral (brem_alpha_tiny, BREM_ALPHAMIN) / cdf_brem_tot;  //position in the full cdf of low frequcny boundary
     cdf_brem_hi = 1. - num_int (brem_d, BREM_ALPHAMAX, BREM_ALPHABIG, 1e-8) / cdf_brem_tot;     //postion in fhe full hi frequcny boundary
 
 
@@ -223,7 +256,7 @@ get_rand_brem (freqmin, freqmax)
     if (brem_alphamin < BREM_ALPHABIG)  //There is *some* emission
     {
       //     cdf_brem_ylo = qromb (brem_d, brem_alpha_tiny, brem_alphamin, 1e-8) / cdf_brem_tot;       //The position in full CDF of the upper frequency bound
-      cdf_brem_ylo = num_int (brem_d, brem_alpha_tiny, brem_alphamin, 1e-8) / cdf_brem_tot;     //The position in full CDF of the upper frequency bound
+      cdf_brem_ylo = brem_integral_from_floor (brem_alpha_tiny, brem_alphamin) / cdf_brem_tot;  //The position in full CDF of the upper frequency bound
 
       if (cdf_brem_ylo > 1.0)
         cdf_brem_ylo = 1.0;
@@ -231,7 +264,7 @@ get_rand_brem (freqmin, freqmax)
     if (brem_alphamax < BREM_ALPHABIG)
     {
 //      cdf_brem_yhi = qromb (brem_d, brem_alpha_tiny, brem_alphamax, 1e-8) / cdf_brem_tot;       //position in the full cdf of currnt hi frequcny boundary
-      cdf_brem_yhi = num_int (brem_d, brem_alpha_tiny, brem_alphamax, 1e-8) / cdf_brem_tot;     //position in the full cdf of currnt hi frequcny boundary
+      cdf_brem_yhi = brem_integral_from_floor (brem_alpha_tiny, brem_alphamax) / cdf_brem_tot;  //position in the full cdf of currnt hi frequcny boundary
 
       if (cdf_brem_yhi > 1.0)
         cdf_brem_yhi = 1.0;
