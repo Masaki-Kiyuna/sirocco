@@ -16,8 +16,173 @@
 #include "sirocco.h"
 
 #define COLMIN  0.01
+#define CLOUDY_GFF_NGAM2 81
+#define CLOUDY_GFF_NU 146
+#define CLOUDY_GFF_MAX_Z 2
+#define CLOUDY_GFF_UNLOADED 0
+#define CLOUDY_GFF_LOADED 1
+#define CLOUDY_GFF_FAILED -1
 
 int iicount = 0;
+
+static double cloudy_gff_table[CLOUDY_GFF_MAX_Z + 1][CLOUDY_GFF_NU][CLOUDY_GFF_NGAM2];
+static int cloudy_gff_status[CLOUDY_GFF_MAX_Z + 1];
+static double cloudy_gff_lg_gam2_min, cloudy_gff_lg_u_min, cloudy_gff_step;
+
+static int
+cloudy_gff_load_table (z)
+     int z;
+{
+  FILE *fp;
+  char filename[LINELENGTH], line[LINELENGTH * 4], *ptr;
+  int ng, nu, zfile, iu, ig;
+  double lg_gam2_min, lg_u_min, step, val;
+
+  if (z < 1 || z > CLOUDY_GFF_MAX_Z)
+  {
+    return CLOUDY_GFF_FAILED;
+  }
+  if (cloudy_gff_status[z] != CLOUDY_GFF_UNLOADED)
+  {
+    return cloudy_gff_status[z];
+  }
+
+  snprintf (filename, sizeof (filename), "data/atomic/gauntff_merged_Z%02d.dat", z);
+  fp = fopen (filename, "r");
+  if (fp == NULL)
+  {
+    snprintf (filename, sizeof (filename), "/work/kiyunams/cloudy/data/gauntff_merged_Z%02d.dat", z);
+    fp = fopen (filename, "r");
+  }
+  if (fp == NULL)
+  {
+    Error ("cloudy_gff_load_table: could not open Cloudy Gaunt table for Z=%d; using standard SIROCCO Gaunt factor\n", z);
+    cloudy_gff_status[z] = CLOUDY_GFF_FAILED;
+    return cloudy_gff_status[z];
+  }
+
+  if (fgets (line, sizeof (line), fp) == NULL || fgets (line, sizeof (line), fp) == NULL || sscanf (line, "%d %d", &ng, &nu) != 2
+      || fgets (line, sizeof (line), fp) == NULL || sscanf (line, "%lf", &lg_gam2_min) != 1 || fgets (line, sizeof (line), fp) == NULL
+      || sscanf (line, "%lf", &lg_u_min) != 1 || fgets (line, sizeof (line), fp) == NULL || sscanf (line, "%lf", &step) != 1
+      || fgets (line, sizeof (line), fp) == NULL || sscanf (line, "%d", &zfile) != 1)
+  {
+    Error ("cloudy_gff_load_table: malformed Cloudy Gaunt table header for Z=%d\n", z);
+    fclose (fp);
+    cloudy_gff_status[z] = CLOUDY_GFF_FAILED;
+    return cloudy_gff_status[z];
+  }
+
+  if (ng != CLOUDY_GFF_NGAM2 || nu != CLOUDY_GFF_NU || zfile != z)
+  {
+    Error ("cloudy_gff_load_table: unexpected Cloudy Gaunt table dimensions/Z for Z=%d\n", z);
+    fclose (fp);
+    cloudy_gff_status[z] = CLOUDY_GFF_FAILED;
+    return cloudy_gff_status[z];
+  }
+
+  cloudy_gff_lg_gam2_min = lg_gam2_min;
+  cloudy_gff_lg_u_min = lg_u_min;
+  cloudy_gff_step = step;
+
+  fgets (line, sizeof (line), fp);
+  fgets (line, sizeof (line), fp);
+
+  for (iu = 0; iu < CLOUDY_GFF_NU; iu++)
+  {
+    if (fgets (line, sizeof (line), fp) == NULL)
+    {
+      Error ("cloudy_gff_load_table: premature EOF in Cloudy Gaunt table for Z=%d\n", z);
+      fclose (fp);
+      cloudy_gff_status[z] = CLOUDY_GFF_FAILED;
+      return cloudy_gff_status[z];
+    }
+    ptr = line;
+    for (ig = 0; ig < CLOUDY_GFF_NGAM2; ig++)
+    {
+      val = strtod (ptr, &ptr);
+      if (val <= 0.0)
+      {
+        Error ("cloudy_gff_load_table: bad Gaunt value in Cloudy table for Z=%d\n", z);
+        fclose (fp);
+        cloudy_gff_status[z] = CLOUDY_GFF_FAILED;
+        return cloudy_gff_status[z];
+      }
+      cloudy_gff_table[z][iu][ig] = log (val);
+    }
+  }
+
+  fclose (fp);
+  cloudy_gff_status[z] = CLOUDY_GFF_LOADED;
+  Log ("Read private Cloudy free-free Gaunt table %s\n", filename);
+  return cloudy_gff_status[z];
+}
+
+static double
+cloudy_frequency_gaunt (z, t_e, freq)
+     int z;
+     double t_e, freq;
+{
+  double gsqrd, lg_gam2, lg_u, fg, fu, y00, y10, y01, y11, yg0, yg1;
+  int ig, iu;
+
+  gsqrd = (z * z * RYD2ERGS) / (BOLTZMANN * t_e);
+  if (cloudy_gff_load_table (z) != CLOUDY_GFF_LOADED)
+  {
+    return gaunt_ff (gsqrd);
+  }
+
+  lg_gam2 = log10 (gsqrd);
+  lg_u = log10 (H_OVER_K * freq / t_e);
+
+  if (lg_gam2 < cloudy_gff_lg_gam2_min)
+  {
+    lg_gam2 = cloudy_gff_lg_gam2_min;
+  }
+  if (lg_u < cloudy_gff_lg_u_min)
+  {
+    lg_u = cloudy_gff_lg_u_min;
+  }
+  if (lg_gam2 > cloudy_gff_lg_gam2_min + cloudy_gff_step * (CLOUDY_GFF_NGAM2 - 1))
+  {
+    lg_gam2 = cloudy_gff_lg_gam2_min + cloudy_gff_step * (CLOUDY_GFF_NGAM2 - 1);
+  }
+  if (lg_u > cloudy_gff_lg_u_min + cloudy_gff_step * (CLOUDY_GFF_NU - 1))
+  {
+    lg_u = cloudy_gff_lg_u_min + cloudy_gff_step * (CLOUDY_GFF_NU - 1);
+  }
+
+  fg = (lg_gam2 - cloudy_gff_lg_gam2_min) / cloudy_gff_step;
+  fu = (lg_u - cloudy_gff_lg_u_min) / cloudy_gff_step;
+  ig = (int) floor (fg);
+  iu = (int) floor (fu);
+  if (ig >= CLOUDY_GFF_NGAM2 - 1)
+  {
+    ig = CLOUDY_GFF_NGAM2 - 2;
+    fg = 1.0;
+  }
+  else
+  {
+    fg -= ig;
+  }
+  if (iu >= CLOUDY_GFF_NU - 1)
+  {
+    iu = CLOUDY_GFF_NU - 2;
+    fu = 1.0;
+  }
+  else
+  {
+    fu -= iu;
+  }
+
+  y00 = cloudy_gff_table[z][iu][ig];
+  y10 = cloudy_gff_table[z][iu][ig + 1];
+  y01 = cloudy_gff_table[z][iu + 1][ig];
+  y11 = cloudy_gff_table[z][iu + 1][ig + 1];
+  yg0 = y00 + fg * (y10 - y00);
+  yg1 = y01 + fg * (y11 - y01);
+
+  return exp (yg0 + fu * (yg1 - yg0));
+}
 
 
 /**********************************************************/
@@ -535,7 +700,8 @@ kappa_ff (xplasma, freq)
   double x;
   double exp ();
   double x1, x2, x3;
-  int ndom;
+  double gaunt, sum;
+  int ndom, j, charge;
 
   if (xplasma->nwind < 0)
   {
@@ -557,6 +723,20 @@ kappa_ff (xplasma, freq)
     {
       x = x1 = 3.692e8 * xplasma->ne * (xplasma->density[1]);
     }
+  }
+  else if (geo.ff_gaunt_mode == FF_GAUNT_CLOUDY_TABLE)
+  {
+    sum = 0.0;
+    for (j = 0; j < nions; j++)
+    {
+      if (ion[j].istate != 1)
+      {
+        charge = ion[j].istate - 1;
+        gaunt = cloudy_frequency_gaunt (charge, xplasma->t_e, freq);
+        sum += xplasma->density[j] * charge * charge * gaunt;
+      }
+    }
+    x = x1 = xplasma->ne * sum * 3.692e8;
   }
   else
   {

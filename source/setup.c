@@ -815,6 +815,17 @@ fixed concentration file. \n\
     exit (0);
   }
 
+  geo.ff_gaunt_mode = FF_GAUNT_INTEGRATED;
+  if (rdpar_keyword_exists ("@Free_free.gaunt_factor"))
+  {
+    strcpy (answer, "integrated");
+    geo.ff_gaunt_mode = rdchoice ("@Free_free.gaunt_factor(integrated,cloudy_table)", "0,1", answer);
+    if (geo.ff_gaunt_mode == FF_GAUNT_CLOUDY_TABLE)
+    {
+      Log ("Warning: Using private Cloudy-table frequency-dependent Gaunt factors for free-free opacity/heating. This is not standard SIROCCO behaviour.\n");
+    }
+  }
+
   if (geo.nonthermal)
   {
     /* The shock heating is defined initally as a luminosity to be added to wind

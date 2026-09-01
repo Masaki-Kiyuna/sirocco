@@ -462,6 +462,7 @@ int rdpar_init(void);
 int string_process(char question[], char dummy[]);
 int string_process_from_command_line(char question[], char dummy[]);
 int string_process_from_file(char question[], char dummy[]);
+int rdpar_keyword_exists(char question[]);
 int rdpar_store_record(char *name, char *value);
 int rdpar_save(FILE *file_ptr);
 int rdpar_comment(char *format, ...);

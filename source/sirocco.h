@@ -695,6 +695,9 @@ struct geometry
 
   double brem_temp;             /**< The temperature of a bremsstrahlung source */
   double brem_alpha;            /**< The exponent of the nu term for a bremstrahlung source */
+  int ff_gaunt_mode;            /**< Private option: free-free opacity Gaunt factor mode */
+#define FF_GAUNT_INTEGRATED 0
+#define FF_GAUNT_CLOUDY_TABLE 1
 
   double pl_low_cutoff;         /**<  accessible only in advanced mode- see #34. default to zero */
 

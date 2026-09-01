@@ -569,6 +569,81 @@ string_process_from_command_line (question, dummy)
 
 
 /**********************************************************/
+/**
+ * @brief Check whether a keyword exists in the current parameter file.
+ *
+ * This is intended for optional private inputs where falling back to
+ * interactive mode would make MPI batch jobs fail.
+ **********************************************************/
+
+int
+rdpar_keyword_exists (question)
+     char question[];
+{
+  char firstword[LINELEN], secondword[LINELEN];
+  char *line, *ccc, *index ();
+  int nwords, wordlength, i, j;
+  char xfirstword[LINELEN], xquestion[LINELEN];
+
+  if (rdpar_stat != 2)
+  {
+    return (0);
+  }
+
+  for (i = 0; i < rdpar_ntot; i++)
+  {
+    if (input[i].icheck == USED)
+    {
+      continue;
+    }
+
+    line = input[i].line;
+    strcpy (firstword, "");
+    strcpy (secondword, "");
+    nwords = sscanf (line, "%s %s", firstword, secondword);
+
+    wordlength = strlen (firstword);
+    if (nwords < 2 || wordlength == 0)
+    {
+      continue;
+    }
+
+    if ((ccc = index (firstword, '(')) != NULL)
+    {
+      wordlength = (int) (ccc - firstword);
+      if (wordlength == 0)
+      {
+        continue;
+      }
+    }
+
+    if (strncmp (question, firstword, wordlength) == 0)
+    {
+      return (1);
+    }
+
+    memcpy (xquestion, question, wordlength);
+    memcpy (xfirstword, firstword, wordlength);
+    xquestion[wordlength] = '\0';
+    xfirstword[wordlength] = '\0';
+    for (j = 0; j < wordlength; j++)
+    {
+      xquestion[j] = tolower (xquestion[j]);
+      xfirstword[j] = tolower (xfirstword[j]);
+    }
+
+    if (strncmp (xquestion, xfirstword, wordlength) == 0)
+    {
+      return (1);
+    }
+  }
+
+  return (0);
+}
+
+
+
+/**********************************************************/
 /** 
  * @brief      locate a keyword in the parameter file and retrieve the string associated with it
  *
