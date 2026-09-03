@@ -613,6 +613,34 @@ main (argc, argv)
   /* Now that the wind is defined we can copy th bands information */
   band_copy ();
 
+  if (geo.ff_plasma_cutoff_ne > 0.0 && NPLASMA > 0)
+  {
+    double min_ne = VERY_BIG;
+    double max_ne = 0.0;
+    double max_plasma_ev;
+
+    for (n = 0; n < NPLASMA; n++)
+    {
+      if (plasmamain[n].ne > 0.0 && plasmamain[n].ne < min_ne)
+      {
+        min_ne = plasmamain[n].ne;
+      }
+      if (plasmamain[n].ne > max_ne)
+      {
+        max_ne = plasmamain[n].ne;
+      }
+    }
+
+    max_plasma_ev = HEV * 8.978e3 * sqrt (max_ne);
+    Log ("Free-free plasma cutoff cell check: NPLASMA=%d, input_ne=%10.3e cm^-3, min_cell_ne=%10.3e cm^-3, max_cell_ne=%10.3e cm^-3, max_cell_E_plasma=%10.3e eV, effective_low_energy=%10.3e eV.\n",
+         NPLASMA, geo.ff_plasma_cutoff_ne, min_ne, max_ne, max_plasma_ev, geo.ff_low_energy_effective_ev);
+    if (max_plasma_ev > 1.001 * geo.ff_low_energy_effective_ev)
+    {
+      Log
+        ("Warning: Some cells have plasma frequencies above the adopted low-energy cutoff. Increase Free_free.low_freq_plasma_ne(cm-3) or treat this as a private-test caveat.\n");
+    }
+  }
+
   Log ("DFUDGE set to %e based on geo.rmax\n", DFUDGE);
 
   if (modes.zeus_connect == 1)  //We have restarted, but are in zeus connect mode, so we want to update density, temp and velocities

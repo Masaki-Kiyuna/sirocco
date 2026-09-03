@@ -90,6 +90,10 @@ init_geo ()
   geo.disk_z0 = geo.disk_z1 = 0.0;
   geo.adiabatic = 1;            // Default is now set so that adiabatic cooling is included in the wind
   geo.auger_ionization = TRUE;  //Default is on.
+  geo.ff_plasma_cutoff_ne = 0.0;
+  geo.ff_low_energy_input_ev = 0.0;
+  geo.ff_low_energy_plasma_ev = 0.0;
+  geo.ff_low_energy_effective_ev = 0.0;
 
 
   geo.run_type = 0;             // Not a restart of a previous run

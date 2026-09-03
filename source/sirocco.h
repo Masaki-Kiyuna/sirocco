@@ -696,6 +696,10 @@ struct geometry
   double brem_temp;             /**< The temperature of a bremsstrahlung source */
   double brem_alpha;            /**< The exponent of the nu term for a bremstrahlung source */
   int ff_gaunt_mode;            /**< Private option: free-free opacity Gaunt factor mode */
+  double ff_plasma_cutoff_ne;   /**< Private option: electron density used for a plasma-frequency low-energy cutoff */
+  double ff_low_energy_input_ev;        /**< Input photon sampling low-energy limit before private free-free cutoff adjustments */
+  double ff_low_energy_plasma_ev;       /**< Plasma-frequency low-energy cutoff implied by ff_plasma_cutoff_ne */
+  double ff_low_energy_effective_ev;    /**< Effective photon sampling low-energy limit after private free-free cutoff adjustments */
 #define FF_GAUNT_INTEGRATED 0
 #define FF_GAUNT_CLOUDY_TABLE 1
 

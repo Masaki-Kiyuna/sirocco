@@ -548,6 +548,33 @@ bands_init (imode, band)
 
     xx = f1 * HEV;
     rddoub ("Photon_sampling.low_energy_limit(eV)", &xx);
+    geo.ff_low_energy_input_ev = xx;
+    geo.ff_low_energy_plasma_ev = 0.0;
+    if (rdpar_keyword_exists ("@Free_free.low_freq_plasma_ne"))
+    {
+      rddoub ("@Free_free.low_freq_plasma_ne(cm-3)", &geo.ff_plasma_cutoff_ne);
+      if (geo.ff_plasma_cutoff_ne > 0.0)
+      {
+        geo.ff_low_energy_plasma_ev = HEV * 8.978e3 * sqrt (geo.ff_plasma_cutoff_ne);
+        Log
+          ("Warning: Using private plasma-frequency low-energy cutoff check for free-free tests: ne=%10.3e cm^-3, E_plasma=%10.3e eV. This is not standard SIROCCO behaviour.\n",
+           geo.ff_plasma_cutoff_ne, geo.ff_low_energy_plasma_ev);
+        if (geo.ff_low_energy_plasma_ev > xx)
+        {
+          Log ("Photon_sampling.low_energy_limit(eV) raised from %10.3e to %10.3e by private plasma-frequency cutoff.\n", xx,
+               geo.ff_low_energy_plasma_ev);
+          xx = geo.ff_low_energy_plasma_ev;
+        }
+      }
+      else
+      {
+        Log ("Private plasma-frequency low-energy cutoff disabled because Free_free.low_freq_plasma_ne=%10.3e cm^-3.\n",
+             geo.ff_plasma_cutoff_ne);
+      }
+    }
+    geo.ff_low_energy_effective_ev = xx;
+    Log ("Free-free low-energy cutoff summary: input=%10.3e eV, plasma=%10.3e eV, effective=%10.3e eV.\n",
+         geo.ff_low_energy_input_ev, geo.ff_low_energy_plasma_ev, geo.ff_low_energy_effective_ev);
     f1 = xx / HEV;
 
     xx = f1 * HEV;
