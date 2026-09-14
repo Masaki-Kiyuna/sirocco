@@ -314,8 +314,12 @@ diag_induced_compton_bands (void)
   double q_ff, q_comp, q_ind;
   double heat_ff_mpiavg[200], heat_comp_mpiavg[200], heat_ind_mpiavg[200];
   double heat_ind_mpimin[200], heat_ind_mpimax[200];
+  double heat_ff_total, heat_comp_total, heat_ind_total, heat_cum;
+  double e50, e90, e99;
+  double ind_heat_frac, ind_comp_frac, ind_ff_frac;
   int heat_ind_nonzero_ranks[200];
   int i, nplasma;
+  const char *cutoff_driver;
 
   if (geo.diag_indcomp_bands == FALSE)
   {
@@ -399,6 +403,8 @@ diag_induced_compton_bands (void)
   log_e1 = log (geo.diag_indcomp_low_ev);
   log_e2 = log (geo.diag_indcomp_high_ev);
   dlog_e = (log_e2 - log_e1) / geo.diag_indcomp_nbins;
+  heat_ff_total = heat_comp_total = heat_ind_total = 0.0;
+  e50 = e90 = e99 = 0.0;
 
   for (i = 0; i < geo.diag_indcomp_nbins; i++)
   {
@@ -444,9 +450,50 @@ diag_induced_compton_bands (void)
       fprintf (fptr, " %.8e %d %.8e %.8e", 0.0, 0, 0.0, 0.0);
     }
     fprintf (fptr, " %.8e %.8e %.8e\n", geo.ff_low_energy_input_ev, geo.ff_low_energy_plasma_ev, geo.ff_low_energy_effective_ev);
+
+    heat_ff_total += heat_ff_mpiavg[i];
+    heat_comp_total += heat_comp_mpiavg[i];
+    heat_ind_total += heat_ind_mpiavg[i];
   }
 
   fclose (fptr);
+
+  heat_cum = 0.0;
+  for (i = 0; i < geo.diag_indcomp_nbins && heat_ind_total > 0.0; i++)
+  {
+    e_hi = exp (log_e1 + (i + 1) * dlog_e);
+    heat_cum += heat_ind_mpiavg[i];
+    if (e50 == 0.0 && heat_cum >= 0.50 * heat_ind_total)
+    {
+      e50 = e_hi;
+    }
+    if (e90 == 0.0 && heat_cum >= 0.90 * heat_ind_total)
+    {
+      e90 = e_hi;
+    }
+    if (e99 == 0.0 && heat_cum >= 0.99 * heat_ind_total)
+    {
+      e99 = e_hi;
+    }
+  }
+
+  cutoff_driver = "input";
+  if (geo.ff_low_energy_plasma_ev > geo.ff_low_energy_input_ev && geo.ff_low_energy_effective_ev == geo.ff_low_energy_plasma_ev)
+  {
+    cutoff_driver = "plasma";
+  }
+  else if (geo.ff_low_energy_effective_ev != geo.ff_low_energy_input_ev)
+  {
+    cutoff_driver = "other";
+  }
+
+  ind_heat_frac = (xp->heat_tot > 0.0) ? heat_ind_total / xp->heat_tot : 0.0;
+  ind_comp_frac = (heat_comp_total > 0.0) ? heat_ind_total / heat_comp_total : 0.0;
+  ind_ff_frac = (heat_ff_total > 0.0) ? heat_ind_total / heat_ff_total : 0.0;
+  Log
+    ("Induced Compton low-frequency diagnostic: cycle=%d nplasma=%d input_low=%10.3e eV plasma_low=%10.3e eV effective_low=%10.3e eV driver=%s heat_ind=%10.3e heat_comp=%10.3e heat_ff=%10.3e ind/heat_tot=%8.3e ind/comp=%8.3e ind/ff=%8.3e E50/90/99=%10.3e/%10.3e/%10.3e eV. Diagnostic-only, one line per wind update.\n",
+     geo.wcycle, nplasma, geo.ff_low_energy_input_ev, geo.ff_low_energy_plasma_ev, geo.ff_low_energy_effective_ev, cutoff_driver,
+     heat_ind_total, heat_comp_total, heat_ff_total, ind_heat_frac, ind_comp_frac, ind_ff_frac, e50, e90, e99);
 
   for (i = 0; i < geo.diag_indcomp_nbins; i++)
   {
