@@ -237,6 +237,112 @@ kappa_ind_comp (xplasma, freq)
 
 
 /**********************************************************/
+/**
+ * @brief Write a private, non-physics diagnostic for induced Compton heating.
+ *
+ * @details
+ * This samples the current cell spectral model after an ionization update and
+ * writes opacity/intensity probes over logarithmic frequency bins.  The q_proxy
+ * columns are 4 pi J_nu kappa nu dln(nu), useful for locating which frequencies
+ * dominate each heating estimator.  The routine does not modify the radiation
+ * field or any rate.
+ **********************************************************/
+
+void
+diag_induced_compton_bands (void)
+{
+  FILE *fptr;
+  PlasmaPtr xp;
+  char filename[LINELENGTH];
+  double log_e1, log_e2, dlog_e, e_lo, e_hi, e_mid, dlnnu;
+  double freq, jnu, kap_ff, kap_comp, kap_ind;
+  double q_ff, q_comp, q_ind;
+  int i, nplasma;
+
+  if (geo.diag_indcomp_bands == FALSE || rank_global != 0)
+  {
+    return;
+  }
+
+  nplasma = geo.diag_indcomp_nplasma;
+  if (nplasma < 0 || nplasma >= NPLASMA)
+  {
+    Error ("diag_induced_compton_bands: invalid nplasma=%d for NPLASMA=%d\n", nplasma, NPLASMA);
+    return;
+  }
+  if (geo.diag_indcomp_low_ev <= 0.0 || geo.diag_indcomp_high_ev <= geo.diag_indcomp_low_ev)
+  {
+    Error ("diag_induced_compton_bands: invalid energy range %e %e eV\n", geo.diag_indcomp_low_ev, geo.diag_indcomp_high_ev);
+    return;
+  }
+
+  xp = &plasmamain[nplasma];
+  snprintf (filename, LINELENGTH, "%s.indcomp_diag", files.root);
+  fptr = fopen (filename, "a");
+  if (fptr == NULL)
+  {
+    Error ("diag_induced_compton_bands: could not open %s\n", filename);
+    return;
+  }
+
+  if (ftell (fptr) == 0)
+  {
+    fprintf (fptr,
+             "# root cycle nplasma nwind nbands ibin e_lo_ev e_hi_ev e_mid_ev freq_hz dlnnu spec_model jnu kappa_ff kappa_comp kappa_ind q_ff_proxy q_comp_proxy q_ind_proxy ne te tr vol xj_band nxtot_band fmin_mod fmax_mod low_input_ev low_plasma_ev low_effective_ev\n");
+  }
+
+  log_e1 = log (geo.diag_indcomp_low_ev);
+  log_e2 = log (geo.diag_indcomp_high_ev);
+  dlog_e = (log_e2 - log_e1) / geo.diag_indcomp_nbins;
+
+  for (i = 0; i < geo.diag_indcomp_nbins; i++)
+  {
+    int j, iband;
+    e_lo = exp (log_e1 + i * dlog_e);
+    e_hi = exp (log_e1 + (i + 1) * dlog_e);
+    e_mid = sqrt (e_lo * e_hi);
+    freq = e_mid / HEV;
+    dlnnu = log (e_hi / e_lo);
+
+    iband = -1;
+    for (j = 0; j < xp->nbands; j++)
+    {
+      if (xp->f1[j] < freq && freq <= xp->f2[j])
+      {
+        iband = j;
+        break;
+      }
+    }
+
+    jnu = mean_intensity (xp, freq, MEAN_INTENSITY_ESTIMATOR_MODEL);
+    kap_ff = kappa_ff (xp, freq);
+    kap_comp = kappa_comp (xp, freq);
+    kap_ind = kappa_ind_comp (xp, freq);
+    q_ff = 4.0 * PI * jnu * kap_ff * freq * dlnnu;
+    q_comp = 4.0 * PI * jnu * kap_comp * freq * dlnnu;
+    q_ind = 4.0 * PI * jnu * kap_ind * freq * dlnnu;
+
+    fprintf (fptr,
+             "%s %d %d %d %d %d %.8e %.8e %.8e %.8e %.8e %d %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e",
+             files.root, geo.wcycle, nplasma, xp->nwind, xp->nbands, i, e_lo, e_hi, e_mid, freq, dlnnu,
+             (iband >= 0) ? xp->spec_mod_type[iband] : 0, jnu, kap_ff, kap_comp, kap_ind, q_ff, q_comp, q_ind,
+             xp->ne, xp->t_e, xp->t_r, xp->vol);
+    if (iband >= 0)
+    {
+      fprintf (fptr, " %.8e %d %.8e %.8e", xp->xj[iband], xp->nxtot[iband], xp->fmin_mod[iband], xp->fmax_mod[iband]);
+    }
+    else
+    {
+      fprintf (fptr, " %.8e %d %.8e %.8e", 0.0, 0, 0.0, 0.0);
+    }
+    fprintf (fptr, " %.8e %.8e %.8e\n", geo.ff_low_energy_input_ev, geo.ff_low_energy_plasma_ev, geo.ff_low_energy_effective_ev);
+  }
+
+  fclose (fptr);
+}
+
+
+/**********************************************************/
 /** 
  * @brief      computes the cooling in the cell due to inverse Compton scattering.
  *

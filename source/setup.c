@@ -819,7 +819,35 @@ fixed concentration file. \n\
     exit (0);
   }
 
+  geo.adiabatic_recompute_compression = FALSE;
+  if (rdpar_keyword_exists ("@Adiabatic.recompute_compression"))
+  {
+    strcpy (answer, "no");
+    geo.adiabatic_recompute_compression = rdchoice ("@Adiabatic.recompute_compression(yes,no)", "1,0", answer);
+    if (geo.adiabatic_recompute_compression)
+    {
+      Log
+        ("Warning: private option @Adiabatic.recompute_compression enabled. Compressive adiabatic heating is recomputed at the trial temperature using the current fixed ion/electron densities.\n");
+    }
+  }
+
+  geo.allow_negative_divergence = FALSE;
+  if (rdpar_keyword_exists ("@Wind.allow_negative_divergence"))
+  {
+    strcpy (answer, "no");
+    geo.allow_negative_divergence = rdchoice ("@Wind.allow_negative_divergence(yes,no)", "1,0", answer);
+    if (geo.allow_negative_divergence)
+    {
+      Log ("Warning: private option @Wind.allow_negative_divergence enabled. Negative div_v is expected and wind_div_v warnings are suppressed.\n");
+    }
+  }
+
   geo.ff_gaunt_mode = FF_GAUNT_INTEGRATED;
+  geo.diag_indcomp_bands = FALSE;
+  geo.diag_indcomp_nplasma = 0;
+  geo.diag_indcomp_nbins = 16;
+  geo.diag_indcomp_low_ev = 4.14e-8;
+  geo.diag_indcomp_high_ev = 1.0e4;
   if (rdpar_keyword_exists ("@Free_free.gaunt_factor"))
   {
     strcpy (answer, "integrated");
@@ -827,6 +855,25 @@ fixed concentration file. \n\
     if (geo.ff_gaunt_mode == FF_GAUNT_CLOUDY_TABLE)
     {
       Log ("Warning: Using private Cloudy-table frequency-dependent Gaunt factors for free-free opacity/heating. This is not standard SIROCCO behaviour.\n");
+    }
+  }
+  if (rdpar_keyword_exists ("@Diag.induced_compton_bands"))
+  {
+    strcpy (answer, "no");
+    geo.diag_indcomp_bands = rdchoice ("@Diag.induced_compton_bands(yes,no)", "1,0", answer);
+    if (geo.diag_indcomp_bands)
+    {
+      rdint ("@Diag.induced_compton_nplasma", &geo.diag_indcomp_nplasma);
+      rdint ("@Diag.induced_compton_nbins", &geo.diag_indcomp_nbins);
+      rddoub ("@Diag.induced_compton_low_energy(eV)", &geo.diag_indcomp_low_ev);
+      rddoub ("@Diag.induced_compton_high_energy(eV)", &geo.diag_indcomp_high_ev);
+      if (geo.diag_indcomp_nbins < 1)
+        geo.diag_indcomp_nbins = 1;
+      if (geo.diag_indcomp_nbins > 200)
+        geo.diag_indcomp_nbins = 200;
+      Log
+        ("Warning: private diagnostic @Diag.induced_compton_bands enabled for nplasma=%d, nbins=%d, E=[%10.3e,%10.3e] eV. This does not change physics.\n",
+         geo.diag_indcomp_nplasma, geo.diag_indcomp_nbins, geo.diag_indcomp_low_ev, geo.diag_indcomp_high_ev);
     }
   }
 

@@ -1064,6 +1064,38 @@ mean_intensity_from_models (PlasmaPtr xplasma, double freq, int mode)
                Still this should only happen in very sparse cells, so induced Compton
                is unlikely to be important in such cells. We generate a warning, just
                so we can see if this is happening a lot */
+            double xj_tot = 0.0;
+            double xj_frac = 0.0;
+            double edge_ratio = 0.0;
+            int j;
+
+            for (j = 0; j < xplasma->nbands; j++)
+            {
+              xj_tot += xplasma->xj[j];
+            }
+
+            if (xj_tot > 0.0)
+            {
+              xj_frac = xplasma->xj[i] / xj_tot;
+              if (xj_frac > nerr_Jmodel_wrong_freq_max_xj_frac)
+              {
+                nerr_Jmodel_wrong_freq_max_xj_frac = xj_frac;
+              }
+            }
+
+            if (freq <= xplasma->fmin_mod[i] && freq > 0.0)
+            {
+              edge_ratio = xplasma->fmin_mod[i] / freq;
+            }
+            else if (freq >= xplasma->fmax_mod[i] && xplasma->fmax_mod[i] > 0.0)
+            {
+              edge_ratio = freq / xplasma->fmax_mod[i];
+            }
+            if (edge_ratio > nerr_Jmodel_wrong_freq_max_edge_ratio)
+            {
+              nerr_Jmodel_wrong_freq_max_edge_ratio = edge_ratio;
+            }
+
             j_bar = 0.0;
             nerr_Jmodel_wrong_freq++;
           }

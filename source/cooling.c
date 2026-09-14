@@ -47,12 +47,16 @@ cooling (xplasma, t)
 
   if (geo.adiabatic)
   {
-    if (wmain[xplasma->nwind].div_v >= 0.0)
+    if (wmain[xplasma->nwind].div_v >= 0.0 || geo.adiabatic_recompute_compression)
     {
       /* This is the case where we have adiabatic cooling - we want to retain the old behaviour,
          so we use the 'test' temperature to compute it. If div_v is less than zero, we don't do
          anything here, and so the existing value of adiabatic cooling is used - this was computed
-         in wind_updates2d before the call to ion_abundances. */
+         in wind_updates2d before the call to ion_abundances.
+
+         Private option geo.adiabatic_recompute_compression extends this recalculation to div_v<0.
+         This follows the standard calc_te convention: trial temperature is varied, while ion and
+         electron densities remain those from the current cell state. */
       xplasma->cool_adiabatic = adiabatic_cooling (&wmain[xplasma->nwind], t);
     }
   }

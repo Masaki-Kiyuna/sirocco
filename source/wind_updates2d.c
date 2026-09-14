@@ -303,13 +303,24 @@ wind_update (WindPtr w)
   Log
     ("wind_update: can be a problem with photon numbers if there are also errors from spectral_estimators and low photon number warnings\n");
   Log ("wind_update: mean_intensity: %8d occurrences, this cycle, this thread of 'no model exists in a band'\n", nerr_no_Jmodel);
-  Log
-    ("wind_update: mean intensity: %8d occurrences, this cycle, this thread of 'photon freq is outside frequency range of spectral model'\n",
-     nerr_Jmodel_wrong_freq);
+  if (nerr_Jmodel_wrong_freq > 0)
+  {
+    Log
+      ("wind_update: mean intensity: %8d occurrences, this cycle, this thread of 'freq outside local spectral-model range'; max band_xj/total_xj %.2e, max edge_ratio %.2e (small/near 1 can be harmless edge/statistics)\n",
+       nerr_Jmodel_wrong_freq, nerr_Jmodel_wrong_freq_max_xj_frac, nerr_Jmodel_wrong_freq_max_edge_ratio);
+  }
+  else
+  {
+    Log
+      ("wind_update: mean intensity: %8d occurrences, this cycle, this thread of 'freq outside local spectral-model range'\n",
+       nerr_Jmodel_wrong_freq);
+  }
 
   /* zero the counters which record diagnostics from the function mean_intensity */
   nerr_Jmodel_wrong_freq = 0;
   nerr_no_Jmodel = 0;
+  nerr_Jmodel_wrong_freq_max_xj_frac = 0.0;
+  nerr_Jmodel_wrong_freq_max_edge_ratio = 0.0;
 
   /* The lines differ only in that Wind_heating adds mechanical heating, that is adiabatic heating */
   Log
@@ -388,8 +399,10 @@ wind_update (WindPtr w)
 
 /* This next block is to allow the output of data relating to the abundances of ions when sirocco is being tested
  * with thin shell mode.
- */
+  */
   shell_output_wind_update_diagnostics (xsum, psum, fsum, csum, icsum, lsum, ausum, chexsum, cool_sum, lum_sum);
+
+  diag_induced_compton_bands ();
 
   xsignal (files.root, "%-20s Finished wind update\n", "NOK");
 

@@ -291,9 +291,10 @@ wind_div_v (int ndom, WindPtr cell)
   /* Compute the divergence for at the center of the cell */
   cell->div_v = get_div_v_in_cmf_frame (ndom, cell->xcen);
 
-  if (cell->div_v < 0 && (wind_div_err < 0 || cell->inwind == W_ALL_INWIND))
+  if (cell->div_v < 0 && geo.allow_negative_divergence == FALSE && (wind_div_err < 0 || cell->inwind == W_ALL_INWIND))
   {
-    Error ("wind_div_v: div v %e negative in cell %d Domain %d. Major problem if inwind (%d) == 0\n", div, cell->nwind, ndom, cell->inwind);
+    Error ("wind_div_v: div v %e negative in cell %d Domain %d. Major problem if inwind (%d) == 0\n", cell->div_v, cell->nwind, ndom,
+           cell->inwind);
     wind_div_err++;
   }
 

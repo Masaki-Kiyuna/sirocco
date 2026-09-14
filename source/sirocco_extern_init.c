@@ -122,6 +122,8 @@ int ncell_stats[NCSTAT];        ///< the numbers of the cells we are going to lo
 
 int nerr_no_Jmodel;
 int nerr_Jmodel_wrong_freq;
+double nerr_Jmodel_wrong_freq_max_xj_frac;
+double nerr_Jmodel_wrong_freq_max_edge_ratio;
 
 struct advanced_modes modes;
 

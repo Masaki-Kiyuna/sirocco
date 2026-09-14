@@ -356,6 +356,8 @@ create_plasma_grid (void)
   /* zero the counters which record diagnostics for mean_intensity */
   nerr_Jmodel_wrong_freq = 0;
   nerr_no_Jmodel = 0;
+  nerr_Jmodel_wrong_freq_max_xj_frac = 0.0;
+  nerr_Jmodel_wrong_freq_max_edge_ratio = 0.0;
 
   broadcast_plasma_grid (n_start, n_stop, n_cells_rank);
 }

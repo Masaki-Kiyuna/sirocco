@@ -624,6 +624,8 @@ struct geometry
   int adiabatic;                /**< 0-> Do not include adiabatic heating in calculating the cooling of the wind
                                    1-> Use adiabatic heating in calculating the cooling of the wind
                                  */
+  int adiabatic_recompute_compression;  /**< Private option: recompute compressive adiabatic heating at trial temperature */
+  int allow_negative_divergence; /**< Private option: permit intentionally converging imported winds without wind_div_v warnings */
   int nonthermal;               /**<  0 --> No extra heating due to shocks
                                    1 --> Extra heating due to shocks (etc)  (Added for FU Ori)
                                  */
@@ -700,6 +702,11 @@ struct geometry
   double ff_low_energy_input_ev;        /**< Input photon sampling low-energy limit before private free-free cutoff adjustments */
   double ff_low_energy_plasma_ev;       /**< Plasma-frequency low-energy cutoff implied by ff_plasma_cutoff_ne */
   double ff_low_energy_effective_ev;    /**< Effective photon sampling low-energy limit after private free-free cutoff adjustments */
+  int diag_indcomp_bands;       /**< Private diagnostic: write band-resolved induced Compton/free-free opacity probes */
+  int diag_indcomp_nplasma;     /**< Private diagnostic: plasma cell to probe */
+  int diag_indcomp_nbins;       /**< Private diagnostic: number of logarithmic probe bins */
+  double diag_indcomp_low_ev;   /**< Private diagnostic: lowest probe energy */
+  double diag_indcomp_high_ev;  /**< Private diagnostic: highest probe energy */
 #define FF_GAUNT_INTEGRATED 0
 #define FF_GAUNT_CLOUDY_TABLE 1
 
@@ -1583,6 +1590,8 @@ extern int ncell_stats[NCSTAT];   /**< the numbers of the cells we are going to 
 /* Added variables which count number of times two situations occur (See #91) */
 extern int nerr_no_Jmodel;
 extern int nerr_Jmodel_wrong_freq;
+extern double nerr_Jmodel_wrong_freq_max_xj_frac;
+extern double nerr_Jmodel_wrong_freq_max_edge_ratio;
 
 
 

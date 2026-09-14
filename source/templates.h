@@ -80,6 +80,7 @@ void broadcast_wind_grid(const int n_start, const int n_stop, const int n_cells_
 int compton_scatter(PhotPtr p);
 double kappa_comp(PlasmaPtr xplasma, double freq);
 double kappa_ind_comp(PlasmaPtr xplasma, double freq);
+void diag_induced_compton_bands(void);
 double total_comp(WindPtr one, double t_e);
 double klein_nishina(double nu);
 void set_comp_func_values(double rand_cs, double max_cs, double energy_ratio);
