@@ -622,6 +622,7 @@ radiation (PhotPtr p, double ds)
 
     xplasma->heat_tot += z * frac_ind_comp;     /* Calculate the heating in the cell due to induced Compton heating */
     xplasma->heat_ind_comp += z * frac_ind_comp;        /* Increment the induced Compton heating counter for the cell */
+    diag_induced_compton_accumulate (xplasma, freq, z * frac_ff, z * frac_comp, z * frac_ind_comp);
     if (freq > phot_freq_min)
     {
       xplasma->abs_photo += z * frac_tot_abs;   //Here we store the energy absorbed from the photon flux - different from the heating by the binding energy

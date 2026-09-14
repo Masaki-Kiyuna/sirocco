@@ -238,6 +238,61 @@ kappa_ind_comp (xplasma, freq)
 
 /**********************************************************/
 /**
+ * @brief Accumulate packet-estimator heating in the induced Compton diagnostic bins.
+ *
+ * @details
+ * This is diagnostic-only bookkeeping.  It mirrors the frequency bins used by
+ * diag_induced_compton_bands() so the model-J proxy can be compared with the
+ * heating actually accumulated during transport.
+ **********************************************************/
+
+static double diag_indcomp_heat_ff[200];
+static double diag_indcomp_heat_comp[200];
+static double diag_indcomp_heat_ind[200];
+
+void
+diag_induced_compton_accumulate (PlasmaPtr xplasma, double freq, double heat_ff, double heat_comp, double heat_ind)
+{
+  double ev, log_e1, log_e2, dlog_e;
+  int ibin;
+
+  if (geo.diag_indcomp_bands == FALSE || xplasma->nplasma != geo.diag_indcomp_nplasma)
+  {
+    return;
+  }
+  if (geo.diag_indcomp_nbins < 1 || geo.diag_indcomp_nbins > 200 || geo.diag_indcomp_low_ev <= 0.0
+      || geo.diag_indcomp_high_ev <= geo.diag_indcomp_low_ev)
+  {
+    return;
+  }
+
+  ev = freq * HEV;
+  if (ev < geo.diag_indcomp_low_ev || ev >= geo.diag_indcomp_high_ev)
+  {
+    return;
+  }
+
+  log_e1 = log (geo.diag_indcomp_low_ev);
+  log_e2 = log (geo.diag_indcomp_high_ev);
+  dlog_e = (log_e2 - log_e1) / geo.diag_indcomp_nbins;
+  ibin = (int) ((log (ev) - log_e1) / dlog_e);
+  if (ibin < 0)
+  {
+    ibin = 0;
+  }
+  if (ibin >= geo.diag_indcomp_nbins)
+  {
+    ibin = geo.diag_indcomp_nbins - 1;
+  }
+
+  diag_indcomp_heat_ff[ibin] += heat_ff;
+  diag_indcomp_heat_comp[ibin] += heat_comp;
+  diag_indcomp_heat_ind[ibin] += heat_ind;
+}
+
+
+/**********************************************************/
+/**
  * @brief Write a private, non-physics diagnostic for induced Compton heating.
  *
  * @details
@@ -257,9 +312,12 @@ diag_induced_compton_bands (void)
   double log_e1, log_e2, dlog_e, e_lo, e_hi, e_mid, dlnnu;
   double freq, jnu, kap_ff, kap_comp, kap_ind;
   double q_ff, q_comp, q_ind;
+  double heat_ff_mpiavg[200], heat_comp_mpiavg[200], heat_ind_mpiavg[200];
+  double heat_ind_mpimin[200], heat_ind_mpimax[200];
+  int heat_ind_nonzero_ranks[200];
   int i, nplasma;
 
-  if (geo.diag_indcomp_bands == FALSE || rank_global != 0)
+  if (geo.diag_indcomp_bands == FALSE)
   {
     return;
   }
@@ -276,6 +334,53 @@ diag_induced_compton_bands (void)
     return;
   }
 
+#ifdef MPI_ON
+  {
+    double heat_ff_mpisum[200], heat_comp_mpisum[200], heat_ind_mpisum[200];
+    int heat_ind_nonzero_local[200];
+
+    for (i = 0; i < geo.diag_indcomp_nbins; i++)
+    {
+      heat_ind_nonzero_local[i] = diag_indcomp_heat_ind[i] > 0.0;
+    }
+
+    MPI_Allreduce (diag_indcomp_heat_ff, heat_ff_mpisum, geo.diag_indcomp_nbins, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce (diag_indcomp_heat_comp, heat_comp_mpisum, geo.diag_indcomp_nbins, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce (diag_indcomp_heat_ind, heat_ind_mpisum, geo.diag_indcomp_nbins, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce (diag_indcomp_heat_ind, heat_ind_mpimin, geo.diag_indcomp_nbins, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    MPI_Allreduce (diag_indcomp_heat_ind, heat_ind_mpimax, geo.diag_indcomp_nbins, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce (heat_ind_nonzero_local, heat_ind_nonzero_ranks, geo.diag_indcomp_nbins, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+    for (i = 0; i < geo.diag_indcomp_nbins; i++)
+    {
+      heat_ff_mpiavg[i] = heat_ff_mpisum[i] / np_mpi_global;
+      heat_comp_mpiavg[i] = heat_comp_mpisum[i] / np_mpi_global;
+      heat_ind_mpiavg[i] = heat_ind_mpisum[i] / np_mpi_global;
+    }
+  }
+#else
+  for (i = 0; i < geo.diag_indcomp_nbins; i++)
+  {
+    heat_ff_mpiavg[i] = diag_indcomp_heat_ff[i];
+    heat_comp_mpiavg[i] = diag_indcomp_heat_comp[i];
+    heat_ind_mpiavg[i] = diag_indcomp_heat_ind[i];
+    heat_ind_mpimin[i] = diag_indcomp_heat_ind[i];
+    heat_ind_mpimax[i] = diag_indcomp_heat_ind[i];
+    heat_ind_nonzero_ranks[i] = diag_indcomp_heat_ind[i] > 0.0;
+  }
+#endif
+
+  if (rank_global != 0)
+  {
+    for (i = 0; i < geo.diag_indcomp_nbins; i++)
+    {
+      diag_indcomp_heat_ff[i] = 0.0;
+      diag_indcomp_heat_comp[i] = 0.0;
+      diag_indcomp_heat_ind[i] = 0.0;
+    }
+    return;
+  }
+
   xp = &plasmamain[nplasma];
   snprintf (filename, LINELENGTH, "%s.indcomp_diag", files.root);
   fptr = fopen (filename, "a");
@@ -288,7 +393,7 @@ diag_induced_compton_bands (void)
   if (ftell (fptr) == 0)
   {
     fprintf (fptr,
-             "# root cycle nplasma nwind nbands ibin e_lo_ev e_hi_ev e_mid_ev freq_hz dlnnu spec_model jnu kappa_ff kappa_comp kappa_ind q_ff_proxy q_comp_proxy q_ind_proxy ne te tr vol xj_band nxtot_band fmin_mod fmax_mod low_input_ev low_plasma_ev low_effective_ev\n");
+             "# root cycle nplasma nwind nbands ibin e_lo_ev e_hi_ev e_mid_ev freq_hz dlnnu spec_model jnu kappa_ff kappa_comp kappa_ind q_ff_proxy q_comp_proxy q_ind_proxy heat_ff_actual_rank0 heat_comp_actual_rank0 heat_ind_actual_rank0 heat_ff_actual_mpiavg heat_comp_actual_mpiavg heat_ind_actual_mpiavg heat_ind_actual_mpimin heat_ind_actual_mpimax heat_ind_actual_nonzero_ranks ne te tr vol xj_band nxtot_band fmin_mod fmax_mod low_input_ev low_plasma_ev low_effective_ev\n");
   }
 
   log_e1 = log (geo.diag_indcomp_low_ev);
@@ -322,11 +427,14 @@ diag_induced_compton_bands (void)
     q_comp = 4.0 * PI * jnu * kap_comp * freq * dlnnu;
     q_ind = 4.0 * PI * jnu * kap_ind * freq * dlnnu;
 
-    fprintf (fptr,
-             "%s %d %d %d %d %d %.8e %.8e %.8e %.8e %.8e %d %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e",
+    fprintf (fptr, "%s %d %d %d %d %d %.8e %.8e %.8e %.8e %.8e %d",
              files.root, geo.wcycle, nplasma, xp->nwind, xp->nbands, i, e_lo, e_hi, e_mid, freq, dlnnu,
-             (iband >= 0) ? xp->spec_mod_type[iband] : 0, jnu, kap_ff, kap_comp, kap_ind, q_ff, q_comp, q_ind,
-             xp->ne, xp->t_e, xp->t_r, xp->vol);
+             (iband >= 0) ? xp->spec_mod_type[iband] : 0);
+    fprintf (fptr, " %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e",
+             jnu, kap_ff, kap_comp, kap_ind, q_ff, q_comp, q_ind,
+             diag_indcomp_heat_ff[i], diag_indcomp_heat_comp[i], diag_indcomp_heat_ind[i],
+             heat_ff_mpiavg[i], heat_comp_mpiavg[i], heat_ind_mpiavg[i], heat_ind_mpimin[i], heat_ind_mpimax[i]);
+    fprintf (fptr, " %d %.8e %.8e %.8e %.8e", heat_ind_nonzero_ranks[i], xp->ne, xp->t_e, xp->t_r, xp->vol);
     if (iband >= 0)
     {
       fprintf (fptr, " %.8e %d %.8e %.8e", xp->xj[iband], xp->nxtot[iband], xp->fmin_mod[iband], xp->fmax_mod[iband]);
@@ -339,6 +447,13 @@ diag_induced_compton_bands (void)
   }
 
   fclose (fptr);
+
+  for (i = 0; i < geo.diag_indcomp_nbins; i++)
+  {
+    diag_indcomp_heat_ff[i] = 0.0;
+    diag_indcomp_heat_comp[i] = 0.0;
+    diag_indcomp_heat_ind[i] = 0.0;
+  }
 }
 
 

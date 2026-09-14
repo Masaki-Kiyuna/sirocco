@@ -81,6 +81,7 @@ int compton_scatter(PhotPtr p);
 double kappa_comp(PlasmaPtr xplasma, double freq);
 double kappa_ind_comp(PlasmaPtr xplasma, double freq);
 void diag_induced_compton_bands(void);
+void diag_induced_compton_accumulate(PlasmaPtr xplasma, double freq, double heat_ff, double heat_comp, double heat_ind);
 double total_comp(WindPtr one, double t_e);
 double klein_nishina(double nu);
 void set_comp_func_values(double rand_cs, double max_cs, double energy_ratio);

@@ -609,6 +609,8 @@ broadcast_updated_plasma_properties (const int n_start_rank, const int n_stop_ra
   int position;
   int n_mpi;
   int num_cells_communicated;
+  int spec_mod_this_rank;
+  int spec_mod_any_rank;
 
   d_xsignal (files.root, "%-20s Begin communicating updated plasma properties\n", "NOK");
   const int n_cells_max = get_max_cells_per_rank (NPLASMA);
@@ -973,6 +975,10 @@ broadcast_updated_plasma_properties (const int n_start_rank, const int n_stop_ra
     }
   }
 
+  spec_mod_this_rank = geo.spec_mod;
+  MPI_Allreduce (&spec_mod_this_rank, &spec_mod_any_rank, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  geo.spec_mod = spec_mod_any_rank;
+
   free (comm_buffer);
   d_xsignal (files.root, "%-20s Finished communicating updated plasma properties\n", "OK");
 #endif
@@ -1016,6 +1022,7 @@ reduce_simple_estimators (void)
   int *iredhelper, *iredhelper2, *iqdisk_helper, *iqdisk_helper2;
   // int size_of_helpers;
   int plasma_double_helpers, plasma_int_helpers;
+  int spec_mod_this_rank, spec_mod_any_rank;
 
   d_xsignal (files.root, "%-20s Begin reduction of simple estimators\n", "NOK");
 
@@ -1139,6 +1146,9 @@ reduce_simple_estimators (void)
   MPI_Allreduce (ion_helper, ion_helper2, NPLASMA * nions, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce (inner_ion_helper, inner_ion_helper2, NPLASMA * n_inner_tot, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce (qdisk_helper, qdisk_helper2, 3 * NRINGS, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  spec_mod_this_rank = geo.spec_mod;
+  MPI_Allreduce (&spec_mod_this_rank, &spec_mod_any_rank, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  geo.spec_mod = spec_mod_any_rank;
 
   /* Unpacking stuff */
   for (mpi_i = 0; mpi_i < NPLASMA; mpi_i++)
