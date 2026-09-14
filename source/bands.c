@@ -575,6 +575,12 @@ bands_init (imode, band)
     geo.ff_low_energy_effective_ev = xx;
     Log ("Free-free low-energy cutoff summary: input=%10.3e eV, plasma=%10.3e eV, effective=%10.3e eV.\n",
          geo.ff_low_energy_input_ev, geo.ff_low_energy_plasma_ev, geo.ff_low_energy_effective_ev);
+    if (geo.ff_low_energy_effective_ev > 1.0e-4)
+    {
+      Log
+        ("Low-frequency caveat: effective cutoff=%10.3e eV (%8.2e x 4.14e-8 eV); unresolved low-frequency free-free absorption and induced Compton heating may be suppressed. Monitor wind_update heat_ff/heat_ind_comp, and enable @Diag.induced_compton_bands for representative cells if important.\n",
+         geo.ff_low_energy_effective_ev, geo.ff_low_energy_effective_ev / 4.14e-8);
+    }
     f1 = xx / HEV;
 
     xx = f1 * HEV;
