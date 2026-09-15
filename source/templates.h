@@ -702,6 +702,7 @@ int spec_save(char filename[]);
 int spec_read(char filename[]);
 /* windsave2table_sub.c */
 int do_windsave2table(char *root, int ion_switch, int edge_switch);
+int do_windsave2table_ions(char *root, int ion_switch, int edge_switch);
 int create_master_table(int ndom, char rootname[]);
 int create_heat_table(int ndom, char rootname[]);
 int create_convergence_table(int ndom, char rootname[]);
@@ -821,6 +822,7 @@ void parse_arguments(int argc, char *argv[], char root[], int *ion_switch, int *
 int main(int argc, char *argv[]);
 /* windsave2table_sub.c */
 int do_windsave2table(char *root, int ion_switch, int edge_switch);
+int do_windsave2table_ions(char *root, int ion_switch, int edge_switch);
 int create_master_table(int ndom, char rootname[]);
 int create_heat_table(int ndom, char rootname[]);
 int create_convergence_table(int ndom, char rootname[]);

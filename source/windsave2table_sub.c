@@ -107,6 +107,42 @@ do_windsave2table (root, ion_switch, edge_switch)
   return (0);
 }
 
+int
+do_windsave2table_ions (root, ion_switch, edge_switch)
+     char *root;
+     int ion_switch;
+     int edge_switch;
+{
+  int ndom;
+  char rootname[LINELENGTH];
+
+  xedge = edge_switch;
+
+  for (ndom = 0; ndom < geo.ndomain; ndom++)
+  {
+
+    if (geo.ndomain > 1)
+    {
+      sprintf (rootname, "%s.%d", root, ndom);
+    }
+    else
+    {
+      sprintf (rootname, "%s", root);
+    }
+
+    create_ion_table (ndom, rootname, 1, ion_switch);
+    create_ion_table (ndom, rootname, 2, ion_switch);
+    create_ion_table (ndom, rootname, 6, ion_switch);
+    create_ion_table (ndom, rootname, 7, ion_switch);
+    create_ion_table (ndom, rootname, 8, ion_switch);
+    create_ion_table (ndom, rootname, 11, ion_switch);
+    create_ion_table (ndom, rootname, 14, ion_switch);
+    create_ion_table (ndom, rootname, 20, ion_switch);
+    create_ion_table (ndom, rootname, 26, ion_switch);
+  }
+  return (0);
+}
+
 
 
 

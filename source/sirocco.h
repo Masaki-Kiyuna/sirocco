@@ -1630,6 +1630,7 @@ struct advanced_modes
   int keep_ioncycle_windsaves;  /**< when TRUE, saves wind files for each ionization cycle */
   int keep_ioncycle_spectra;    /**< when TRUE, saves the total spectra for each ionization cycle */
   int make_tables;              /**< when TRUE, create tables showing various parameters for each cycle */
+  int make_ioncycle_heat_tables; /**< when TRUE, create per-ion photo-heating tables for each cycle */
   int track_resonant_scatters;  /**< when TRUE, tracks resonant scatters */
   int save_photons;             /**< when TRUE, tracks photons (in photon2d) */
   int save_extract_photons;     /**< when TRUE, saves details on extracted photons */

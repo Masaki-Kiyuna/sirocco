@@ -181,6 +181,9 @@ get_extra_diagnostics ()
   n += modes.make_tables = rdchoice ("@Diag.make_ioncycle_tables(yes,no)", "1,0", answer);
 
   strcpy (answer, "no");
+  n += modes.make_ioncycle_heat_tables = rdchoice ("@Diag.make_ioncycle_heat_ion_tables(yes,no)", "1,0", answer);
+
+  strcpy (answer, "no");
   n += modes.save_photons = rdchoice ("@Diag.save_photons(yes,no)", "1,0", answer);
 
   strcpy (answer, "no");

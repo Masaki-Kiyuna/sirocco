@@ -376,6 +376,12 @@ calculate_ionization (restart_stat)
         sprintf (dummy, "diag_%.100s/%.100s.%02d", files.root, files.root, geo.wcycle);
         do_windsave2table (dummy, 0, FALSE);
       }
+      if (modes.make_ioncycle_heat_tables)
+      {
+        strcpy (dummy, "");
+        sprintf (dummy, "diag_%.100s/%.100s.%02d", files.root, files.root, geo.wcycle);
+        do_windsave2table_ions (dummy, 6, FALSE);
+      }
       if (modes.keep_ioncycle_spectra)
       {
         strcpy (dummy, "");
