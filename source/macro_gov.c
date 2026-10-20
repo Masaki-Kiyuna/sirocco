@@ -613,7 +613,7 @@ macro_pops_fill_rate_matrix (MacroPtr mplasma, PlasmaPtr xplasma, double xne, in
 
         line_ptr = &line[xconfig[index_lvl].bbu_jump[index_bbu]];
         rate = b12 (line_ptr) * mplasma->jbar_old[xconfig[index_lvl].bbu_indx_first + index_bbu];
-        rate += q12 (line_ptr, xplasma->t_e) * xne;
+        rate += macro_bb_coll_exc_rate (line_ptr, xplasma);
 
         /* This is the rate out of the level in question. We need to add it
            to the matrix in two places: firstly as a -ve contribution to the
@@ -645,8 +645,8 @@ macro_pops_fill_rate_matrix (MacroPtr mplasma, PlasmaPtr xplasma, double xne, in
            including a collisional term (which depends on ne). */
 
         line_ptr = &line[xconfig[index_lvl].bbd_jump[index_bbd]];
-        rate = (a21 (line_ptr) * p_escape (line_ptr, xplasma));
-        rate += q21 (line_ptr, xplasma->t_e) * xne;
+        rate = (a21 (line_ptr) * line_escape_factor (line_ptr, xplasma));
+        rate += macro_bb_coll_deexc_rate (line_ptr, xplasma);
 
         /* This is the rate out of the level in question. We need to add it
            to the matrix in two places: firstly as a -ve contribution to the

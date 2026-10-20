@@ -2763,6 +2763,16 @@ a total emission oscillator strength for the level....really ought to be radiati
     }
   }
 
+  for (n = 0; n < nlines; n++)
+  {
+    if (is_h1_2s_two_photon_line (&line[n]))
+    {
+      Log
+        ("get_atomic_data: Private H I 2s->1s two-photon surrogate line found: line=%d lambda=%.6g A=%.6g s^-1 escape_factor=1 f=%.6g\n",
+         n, VLIGHT / line[n].freq / ANGSTROM, a21 (&line[n]), line[n].f);
+    }
+  }
+
 /* Check that all of the macro_info variables are initialized to 1
 or zero so that simple checks of true and false can be used for them */
 

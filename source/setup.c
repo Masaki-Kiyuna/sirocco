@@ -109,6 +109,10 @@ init_geo ()
   geo.m_sec = 0.4 * MSOL;
   geo.period = 3.2 * 3600;
   geo.tstar = 40000;
+  geo.bb_brem_lum_bb = 0.0;
+  geo.bb_brem_temp_bb = 0.0;
+  geo.bb_brem_lum_brem = 0.0;
+  geo.bb_brem_temp_brem = 0.0;
 
   geo.ioniz_mode = IONMODE_ML93;        /* default is on the spot and find the best t */
   geo.line_mode = LINE_MODE_ESC_PROB;   /* default is escape probabilites */
@@ -132,6 +136,7 @@ init_geo ()
 
   strcpy (geo.atomic_filename, "data/standard80.dat");
   strcpy (geo.fixed_con_file, "none");
+  geo.h_macro_collisions = H_MACRO_COLLISIONS_STANDARD;
 
   geo.wcycles = geo.pcycles = 1;
   geo.wcycle = geo.pcycle = 0;
@@ -358,6 +363,7 @@ init_advanced_modes ()
 
   modes.no_macro_pops_for_ions = FALSE; /* use the ion densities from macro_pops where applicable */
   modes.early_stopping = FALSE; /* convergence-based early stopping of ionization cycles */
+  modes.searchlight = FALSE;    /* diagnostic searchlight mode must be opt-in */
 
   return (0);
 }
@@ -842,6 +848,36 @@ fixed concentration file. \n\
     }
   }
 
+  geo.adiabatic_suppress_negative_kpkt_warning = FALSE;
+  if (rdpar_keyword_exists ("@Adiabatic.suppress_negative_kpkt_warning"))
+  {
+    strcpy (answer, "no");
+    geo.adiabatic_suppress_negative_kpkt_warning = rdchoice ("@Adiabatic.suppress_negative_kpkt_warning(yes,no)", "1,0", answer);
+    if (geo.adiabatic_suppress_negative_kpkt_warning)
+    {
+      Log
+        ("Warning: private option @Adiabatic.suppress_negative_kpkt_warning enabled. Negative adiabatic kpkt cooling is expected for intentional inflow; destruction probability is still set to zero.\n");
+    }
+  }
+
+  geo.h1_two_photon_emission = TRUE;
+  if (rdpar_keyword_exists ("@Hydrogen.two_photon_emission"))
+  {
+    strcpy (answer, "on");
+    geo.h1_two_photon_emission = rdchoice ("@Hydrogen.two_photon_emission(on,off)", "1,0", answer);
+    if (geo.h1_two_photon_emission == FALSE)
+    {
+      Log
+        ("Warning: private option @Hydrogen.two_photon_emission=off. The incomplete collapsed-H two-photon line surrogate is disabled; true Ly-alpha and all other transitions are unchanged. This is the recommended setting until a continuum implementation is available.\n");
+    }
+    else
+    {
+      Error
+        ("WARNING: private H I two-photon treatment is an incomplete surrogate, not a physical two-photon continuum. It emits the entire decay energy as one Ly-alpha-frequency line packet with escape_factor=1; the continuum frequency distribution, frequency-dependent reabsorption, and emergent Ly-alpha luminosity are therefore not reliable. Use @Hydrogen.two_photon_emission=off for production calculations until the continuum channel is implemented and validated.\n");
+    }
+  }
+  set_h1_two_photon_emission (geo.h1_two_photon_emission);
+
   geo.ff_gaunt_mode = FF_GAUNT_INTEGRATED;
   geo.diag_indcomp_bands = FALSE;
   geo.diag_indcomp_nplasma = 0;
@@ -1006,6 +1042,14 @@ setup_atomic_data (const char *atomic_filename)
     write_atomicdata = rdchoice ("@Diag.write_atomicdata(yes,no)", "1,0", answer);
     if (write_atomicdata)
       Log ("You have opted to save a summary of the atomic data\n");
+
+  }
+
+  strcpy (answer, "standard");
+  geo.h_macro_collisions = rdchoice ("@H_macro_collisions(standard,omukai2001)", "0,1", answer);
+  if (geo.h_macro_collisions == H_MACRO_COLLISIONS_OMUKAI2001)
+  {
+    Log ("Private option: H I macro-atom n<=5 bound-bound collisions use Omukai (2001) Appendix B rates.\n");
   }
 
   /*

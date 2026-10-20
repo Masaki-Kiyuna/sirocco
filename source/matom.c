@@ -23,6 +23,193 @@ int matom_cell = -1;
 int matom_z = -1;
 int matom_cycle = -1;
 
+static const double omukai_alpha_lu[6][6] = {
+  {0},
+  {0, 0, 24, 22, 22, 21},
+  {0, 0, 0, 67, 58, 56},
+  {0, 0, 0, 0, 124, 101},
+  {0, 0, 0, 0, 0, 185},
+  {0}
+};
+
+static const double omukai_xi_lu[6][6] = {
+  {0},
+  {0, 0, 0.28, 0.37, 0.39, 0.41},
+  {0, 0, 0, 0.30, 0.45, 0.52},
+  {0, 0, 0, 0, 0.26, 0.42},
+  {0, 0, 0, 0, 0, 0.21},
+  {0}
+};
+
+static const double omukai_f_lu[6][6] = {
+  {0},
+  {0, 0, 0.4162, 7.910e-2, 2.899e-2, 1.394e-2},
+  {0, 0, 0, 0.6407, 0.1193, 4.467e-2},
+  {0, 0, 0, 0, 0.8421, 0.1506},
+  {0, 0, 0, 0, 0, 1.038},
+  {0}
+};
+
+
+/**********************************************************/
+/**
+ * @brief      Test whether Omukai (2001) H I collision rates apply.
+ *
+ * @details
+ * The private Omukai variant is limited to collapsed H I macro-atom
+ * bound-bound lines between principal quantum numbers n=1..5.  SIROCCO's
+ * h20 data use levl/levu as collapsed n for H I.
+ **********************************************************/
+
+int
+h1_omukai2001_line_applies (line_ptr)
+     struct lines *line_ptr;
+{
+  if (geo.h_macro_collisions != H_MACRO_COLLISIONS_OMUKAI2001)
+  {
+    return (0);
+  }
+  if (line_ptr == NULL)
+  {
+    return (0);
+  }
+  if (line_ptr->macro_info != TRUE || line_ptr->z != 1 || line_ptr->istate != 1)
+  {
+    return (0);
+  }
+  if (line_ptr->levl < 1 || line_ptr->levl > 5 || line_ptr->levu < 1 || line_ptr->levu > 5 || line_ptr->levl >= line_ptr->levu)
+  {
+    return (0);
+  }
+  return (1);
+}
+
+
+static double
+h1_omukai2001_deexc_coeff_e (line_ptr, t)
+     struct lines *line_ptr;
+     double t;
+{
+  int l, u;
+  double beta;
+  double l2, u2;
+
+  if (t <= 0.0)
+  {
+    return (0.0);
+  }
+
+  l = line_ptr->levl;
+  u = line_ptr->levu;
+  l2 = (double) (l * l);
+  u2 = (double) (u * u);
+  beta = H_OVER_K * line_ptr->freq / t;
+
+  if (beta <= 0.0)
+  {
+    return (0.0);
+  }
+
+  return (1.e-8 * pow (l2 / (u2 - l2), 1.5) * pow ((double) l, 3.0) / u2 * omukai_alpha_lu[l][u]
+          * sqrt (beta * (beta + 1.0)) / (beta + omukai_xi_lu[l][u]));
+}
+
+
+static double
+h1_omukai2001_deexc_coeff_h (line_ptr, t)
+     struct lines *line_ptr;
+     double t;
+{
+  int l, u;
+  double delta, corr;
+
+  if (t <= 0.0)
+  {
+    return (0.0);
+  }
+
+  l = line_ptr->levl;
+  u = line_ptr->levu;
+  delta = 1.0 / ((double) (l * l)) - 1.0 / ((double) (u * u));
+  if (delta <= 0.0)
+  {
+    return (0.0);
+  }
+
+  corr = (1.0 + 1.27e-5 * t / delta) / (1.0 + 4.76e-17 * t * t / (delta * delta));
+  return (7.86e-15 * pow ((double) l / (double) u, 2.0) * pow (delta, -2.0) * omukai_f_lu[l][u] * sqrt (t) * corr);
+}
+
+
+/**********************************************************/
+/**
+ * @brief      Bound-bound collisional de-excitation rate in s^-1.
+ *
+ * @details
+ * Standard mode returns ne*q21.  Omukai mode returns equation (B10) of
+ * Omukai (2001) for H I n<=5:
+ * C_ul = gamma_ul(e) n_e + gamma_ul(H) n(H).
+ **********************************************************/
+
+double
+macro_bb_coll_deexc_rate (line_ptr, xplasma)
+     struct lines *line_ptr;
+     PlasmaPtr xplasma;
+{
+  double ne;
+  double n_h0;
+
+  if (xplasma == NULL)
+  {
+    return (0.0);
+  }
+
+  ne = xplasma->ne;
+
+  if (h1_omukai2001_line_applies (line_ptr))
+  {
+    n_h0 = 0.0;
+    if (line_ptr->nion >= 0)
+    {
+      n_h0 = xplasma->density[line_ptr->nion];
+    }
+    return (h1_omukai2001_deexc_coeff_e (line_ptr, xplasma->t_e) * ne + h1_omukai2001_deexc_coeff_h (line_ptr, xplasma->t_e) * n_h0);
+  }
+
+  return (ne * q21 (line_ptr, xplasma->t_e));
+}
+
+
+/**********************************************************/
+/**
+ * @brief      Bound-bound collisional excitation rate in s^-1.
+ *
+ * @details
+ * Standard mode returns ne*q12.  Omukai mode uses detailed balance,
+ * equation (B13), from the Omukai de-excitation rate.
+ **********************************************************/
+
+double
+macro_bb_coll_exc_rate (line_ptr, xplasma)
+     struct lines *line_ptr;
+     PlasmaPtr xplasma;
+{
+  double deexc;
+
+  if (xplasma == NULL)
+  {
+    return (0.0);
+  }
+
+  if (h1_omukai2001_line_applies (line_ptr))
+  {
+    deexc = macro_bb_coll_deexc_rate (line_ptr, xplasma);
+    return (deexc * line_ptr->gu / line_ptr->gl * exp (-H_OVER_K * line_ptr->freq / xplasma->t_e));
+  }
+
+  return (xplasma->ne * q12 (line_ptr, xplasma->t_e));
+}
+
 /**********************************************************/
 /**
  * @brief The core of the implementation of Macro Atoms in sirocco
@@ -193,8 +380,8 @@ matom (p, nres, escape)
       {
         line_ptr = &line[xconfig[uplvl].bbd_jump[n]];
 
-        rad_rate = (a21 (line_ptr) * p_escape (line_ptr, xplasma));
-        coll_rate = ne * q21 (line_ptr, t_e);
+        rad_rate = (a21 (line_ptr) * line_escape_factor (line_ptr, xplasma));
+        coll_rate = macro_bb_coll_deexc_rate (line_ptr, xplasma);
 
 
         bb_cont = rad_rate + coll_rate;
@@ -258,7 +445,7 @@ matom (p, nres, escape)
         line_ptr = &line[xconfig[uplvl].bbu_jump[n]];
         rad_rate = (b12 (line_ptr) * mplasma->jbar_old[xconfig[uplvl].bbu_indx_first + n]);
 
-        coll_rate = ne * q12 (line_ptr, t_e);   // this is multiplied by ne below
+        coll_rate = macro_bb_coll_exc_rate (line_ptr, xplasma);
 
 
         jprbs_known[uplvl][m] = jprbs[m] = (rad_rate + coll_rate) * xconfig[uplvl].ex;  //energy of lower state
@@ -423,9 +610,9 @@ matom (p, nres, escape)
 
     line_ptr = &line[xconfig[uplvl].bbd_jump[n]];       //pointer for the bb transition
 
-    rad_rate = a21 (line_ptr) * p_escape (line_ptr, xplasma);
+    rad_rate = a21 (line_ptr) * line_escape_factor (line_ptr, xplasma);
 
-    coll_rate = ne * q21 (line_ptr, t_e);
+    coll_rate = macro_bb_coll_deexc_rate (line_ptr, xplasma);
 
     if (choice > (coll_rate / (rad_rate + coll_rate)))
     {
@@ -1220,9 +1407,9 @@ fake_matom_bb (p, nres, escape)
 
    */
 
-  rprb = a21 (line_ptr) * p_escape (line_ptr, xplasma);
+  rprb = a21 (line_ptr) * line_escape_factor (line_ptr, xplasma);
 
-  kprb = q21 (line_ptr, electron_temperature) * xplasma->ne * (1. - exp (-H_OVER_K * line_ptr->freq / electron_temperature));
+  kprb = macro_bb_coll_deexc_rate (line_ptr, xplasma) * (1. - exp (-H_OVER_K * line_ptr->freq / electron_temperature));
 
   normalisation = kprb + rprb;
 
@@ -1398,7 +1585,7 @@ emit_matom (w, p, nres, upper, freq_min, freq_max)
     line_ptr = &line[xconfig[uplvl].bbd_jump[n]];
     if ((line_ptr->freq > freq_min) && (line_ptr->freq < freq_max))     // correct range
     {
-      bb_cont = (a21 (line_ptr) * p_escape (line_ptr, xplasma));
+      bb_cont = (a21 (line_ptr) * line_escape_factor (line_ptr, xplasma));
 
       eprbs[m] = bb_cont * (xconfig[uplvl].ex - xconfig[line[xconfig[uplvl].bbd_jump[n]].nconfigl].ex); //energy difference
       penorm += eprbs[m];

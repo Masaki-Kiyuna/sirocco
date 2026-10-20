@@ -21,6 +21,12 @@ int check_xsections(void);
 double q21(struct lines *line_ptr, double t);
 double q12(struct lines *line_ptr, double t);
 double a21(struct lines *line_ptr);
+int is_h1_2s_two_photon_line(struct lines *line_ptr);
+void set_h1_two_photon_emission(int enabled);
+double line_escape_factor(struct lines *line_ptr, PlasmaPtr xplasma);
+int h1_omukai2001_line_applies(struct lines *line_ptr);
+double macro_bb_coll_deexc_rate(struct lines *line_ptr, PlasmaPtr xplasma);
+double macro_bb_coll_exc_rate(struct lines *line_ptr, PlasmaPtr xplasma);
 double upsilon(int n_coll, double u0);
 void skiplines(FILE *fptr, int nskip);
 /* bands.c */

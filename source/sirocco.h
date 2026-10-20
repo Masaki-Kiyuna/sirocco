@@ -168,6 +168,7 @@ extern int NWAVE_NOW;         /**< Either NWAVE_IONIZ or NWAVE_EXTRACT depending
 #define SPECTYPE_BREM    (-6)
 #define SPECTYPE_MONO    (-7)
 #define SPECTYPE_BB_FCOL (-8)
+#define SPECTYPE_BB_BREM (-9)
 #define SPECTYPE_MODEL	 (-99)  // This is just used briefly, before a model number is assigned
 
 /* definitions of types of colour correction */
@@ -567,6 +568,14 @@ struct geometry
   /* the global storage mode is set in the modes structure */
   int matom_transition_mode;
 
+#define H_MACRO_COLLISIONS_STANDARD     0
+#define H_MACRO_COLLISIONS_OMUKAI2001  1
+  int h_macro_collisions;       /**< Private option for H I macro-atom bound-bound
+                                   collisional excitation/de-excitation rates.
+                                   STANDARD uses the SIROCCO default q12/q21.
+                                   OMUKAI2001 uses Omukai (2001) Appendix B
+                                   rates for collapsed H I n<=5 lines. */
+
   /* Define the choices for calculating the FB, see, e.g. integ_fb */
 
 #define FB_FULL         0       /**<  Calculate fb emissivity including energy associated with the threshold */
@@ -626,6 +635,9 @@ struct geometry
                                  */
   int adiabatic_recompute_compression;  /**< Private option: recompute compressive adiabatic heating at trial temperature */
   int allow_negative_divergence; /**< Private option: permit intentionally converging imported winds without wind_div_v warnings */
+  int adiabatic_suppress_negative_kpkt_warning; /**< Private option: suppress negative adiabatic kpkt warnings for intentional inflows */
+  int h1_two_photon_emission;  /**< Private option: enable the incomplete collapsed-H two-photon line surrogate.
+                                  This is not a physical two-photon continuum implementation. */
   int nonthermal;               /**<  0 --> No extra heating due to shocks
                                    1 --> Extra heating due to shocks (etc)  (Added for FU Ori)
                                  */
@@ -697,6 +709,10 @@ struct geometry
 
   double brem_temp;             /**< The temperature of a bremsstrahlung source */
   double brem_alpha;            /**< The exponent of the nu term for a bremstrahlung source */
+  double bb_brem_lum_bb;        /**< Private BB+brems source: bolometric blackbody luminosity */
+  double bb_brem_temp_bb;       /**< Private BB+brems source: blackbody effective temperature */
+  double bb_brem_lum_brem;      /**< Private BB+brems source: bolometric bremsstrahlung luminosity */
+  double bb_brem_temp_brem;     /**< Private BB+brems source: bremsstrahlung temperature */
   int ff_gaunt_mode;            /**< Private option: free-free opacity Gaunt factor mode */
   double ff_plasma_cutoff_ne;   /**< Private option: electron density used for a plasma-frequency low-energy cutoff */
   double ff_low_energy_input_ev;        /**< Input photon sampling low-energy limit before private free-free cutoff adjustments */

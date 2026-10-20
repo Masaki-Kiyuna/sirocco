@@ -480,7 +480,7 @@ main (argc, argv)
       // If there is 'AGN radiation' that genuinely *is* AGN radiation (and not a star boundary layer
       if (geo.system_type == SYSTEM_TYPE_AGN || geo.system_type == SYSTEM_TYPE_BH)
       {
-        get_spectype (geo.agn_radiation, "Central_object.rad_type_in_final_spectrum(bb,models,power,cloudy,brems,mono)", &geo.agn_spectype);
+        get_spectype (geo.agn_radiation, "Central_object.rad_type_in_final_spectrum(bb,models,power,cloudy,brems,bb_brems,mono)", &geo.agn_spectype);
       }
       else
       {

@@ -94,10 +94,10 @@ calc_matom_matrix (xplasma, matom_matrix)
 
       line_ptr = &line[xconfig[uplvl].bbd_jump[n]];
 
-      rad_rate = a21 (line_ptr) * p_escape (line_ptr, xplasma);
-      coll_rate = q21 (line_ptr, t_e);  // this is multiplied by ne below
+      rad_rate = a21 (line_ptr) * line_escape_factor (line_ptr, xplasma);
+      coll_rate = macro_bb_coll_deexc_rate (line_ptr, xplasma);
 
-      bb_cont = rad_rate + (coll_rate * ne);
+      bb_cont = rad_rate + coll_rate;
 
       target_level = line_ptr->nconfigl;
 
@@ -105,7 +105,7 @@ calc_matom_matrix (xplasma, matom_matrix)
       Q_matrix[uplvl][target_level] += Qcont = bb_cont * xconfig[target_level].ex;      //energy of lower state
 
       //jump to the k-packet pool (we used to call this "deactivation")
-      Q_matrix[uplvl][nlevels_macro] += Qcont_kpkt = (coll_rate * ne) * (xconfig[uplvl].ex - xconfig[target_level].ex); //energy of lower state
+      Q_matrix[uplvl][nlevels_macro] += Qcont_kpkt = coll_rate * (xconfig[uplvl].ex - xconfig[target_level].ex); //energy of lower state
 
       //deactivation back to r-packet
       R_matrix[uplvl][uplvl] += Rcont = rad_rate * (xconfig[uplvl].ex - xconfig[target_level].ex);      //energy difference
@@ -169,10 +169,10 @@ calc_matom_matrix (xplasma, matom_matrix)
       line_ptr = &line[xconfig[uplvl].bbu_jump[n]];
       rad_rate = (b12 (line_ptr) * mplasma->jbar_old[xconfig[uplvl].bbu_indx_first + n]);
 
-      coll_rate = q12 (line_ptr, t_e);  // this is multiplied by ne below
+      coll_rate = macro_bb_coll_exc_rate (line_ptr, xplasma);
 
       target_level = line[xconfig[uplvl].bbu_jump[n]].nconfigu;
-      Q_matrix[uplvl][target_level] += Qcont = ((rad_rate) + (coll_rate * ne)) * xconfig[uplvl].ex;     //energy of lower state
+      Q_matrix[uplvl][target_level] += Qcont = (rad_rate + coll_rate) * xconfig[uplvl].ex;      //energy of lower state
 
       Q_norm[uplvl] += Qcont;
     }
@@ -480,8 +480,16 @@ fill_kpkt_rates (xplasma, escape, p)
       line_ptr = &line[i];
       if (line_ptr->macro_info == TRUE && geo.macro_simple == FALSE)
       {
-        cooling_bb[i] = mplasma->cooling_bb[i] =
-          den_config (xplasma, line_ptr->nconfigl) * q12 (line_ptr, electron_temperature) * line_ptr->freq * PLANCK;
+        if (h1_omukai2001_line_applies (line_ptr))
+        {
+          cooling_bb[i] = mplasma->cooling_bb[i] =
+            den_config (xplasma, line_ptr->nconfigl) * macro_bb_coll_exc_rate (line_ptr, xplasma) * line_ptr->freq * PLANCK;
+        }
+        else
+        {
+          cooling_bb[i] = mplasma->cooling_bb[i] =
+            den_config (xplasma, line_ptr->nconfigl) * q12 (line_ptr, electron_temperature) * line_ptr->freq * PLANCK;
+        }
 
       }
       else
@@ -494,7 +502,7 @@ fill_kpkt_rates (xplasma, escape, p)
           (lower_density * line_ptr->gu / line_ptr->gl -
            upper_density) * coll_rate / (exp (H_OVER_K * line_ptr->freq / electron_temperature) - 1.) * line_ptr->freq * PLANCK;
 
-        rad_rate = a21 (line_ptr) * p_escape (line_ptr, xplasma);
+        rad_rate = a21 (line_ptr) * line_escape_factor (line_ptr, xplasma);
 
         /* Now multiply by the scattering probability - i.e. we are only going to consider bb cooling when
            the photon actually escapes - we don't to waste time by exciting a two-level macro atom only so that
@@ -571,8 +579,11 @@ fill_kpkt_rates (xplasma, escape, p)
      */
     if (cooling_adiabatic < 0)
     {
-      Error ("kpkt: Photon %d. Adiabatic cooling negative! Major problem if inwind (%d) == 0\n", p->np, one->inwind);
-      Error ("kpkt: Photon %d. Setting adiabatic kpkt destruction probability to zero for this matom.\n", p->np);
+      if (geo.adiabatic_suppress_negative_kpkt_warning == FALSE)
+      {
+        Error ("kpkt: Photon %d. Adiabatic cooling negative! Major problem if inwind (%d) == 0\n", p->np, one->inwind);
+        Error ("kpkt: Photon %d. Setting adiabatic kpkt destruction probability to zero for this matom.\n", p->np);
+      }
       cooling_adiabatic = 0.0;
     }
 
@@ -668,7 +679,7 @@ f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max)
     line_ptr = &line[xconfig[uplvl].bbd_jump[n]];
     /* Since we are only interested in making an r-packet here we can (a) ignore collisional
        deactivation and (b) ignore lines outside the frequency range of interest. */
-    bb_cont = (a21 (line_ptr) * p_escape (line_ptr, xplasma));
+    bb_cont = (a21 (line_ptr) * line_escape_factor (line_ptr, xplasma));
 
     eprbs[n] = bb_cont * (xconfig[uplvl].ex - xconfig[line[xconfig[uplvl].bbd_jump[n]].nconfigl].ex);   //energy difference
 

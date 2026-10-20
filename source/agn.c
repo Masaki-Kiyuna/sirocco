@@ -22,6 +22,77 @@
 #include "log.h"
 
 
+static double
+bb_brem_bb_luminosity (freqmin, freqmax)
+     double freqmin, freqmax;
+{
+  double bol;
+
+  if (geo.bb_brem_lum_bb <= 0.0 || geo.bb_brem_temp_bb <= 0.0)
+    return (0.0);
+
+  bol = STEFAN_BOLTZMANN * pow (geo.bb_brem_temp_bb, 4.0);
+  if (bol <= 0.0)
+    return (0.0);
+
+  return (geo.bb_brem_lum_bb * emittance_bb (freqmin, freqmax, geo.bb_brem_temp_bb) / bol);
+}
+
+
+static double
+bb_brem_brem_shape (freq, params)
+     double freq;
+     void *params;
+{
+  (void) params;
+  return (pow (freq, geo.brem_alpha) * exp ((-1.0 * PLANCK * freq) / (BOLTZMANN * geo.bb_brem_temp_brem)));
+}
+
+
+static double
+bb_brem_brem_bolometric_shape ()
+{
+  double scale;
+
+  if (geo.bb_brem_temp_brem <= 0.0 || geo.brem_alpha <= -1.0)
+    return (0.0);
+
+  scale = BOLTZMANN * geo.bb_brem_temp_brem / PLANCK;
+  return (pow (scale, geo.brem_alpha + 1.0) * tgamma (geo.brem_alpha + 1.0));
+}
+
+
+static double
+bb_brem_brem_luminosity (freqmin, freqmax)
+     double freqmin, freqmax;
+{
+  double bol;
+
+  if (geo.bb_brem_lum_brem <= 0.0)
+    return (0.0);
+
+  bol = bb_brem_brem_bolometric_shape ();
+  if (bol <= 0.0)
+  {
+    Error ("bb_brem_brem_luminosity: invalid brems bolometric integral for T=%g alpha=%g\n", geo.bb_brem_temp_brem, geo.brem_alpha);
+    return (0.0);
+  }
+
+  return (geo.bb_brem_lum_brem * num_int (bb_brem_brem_shape, freqmin, freqmax, 1e-4) / bol);
+}
+
+
+static double
+bb_brem_luminosity (freqmin, freqmax, fbb, fbrem)
+     double freqmin, freqmax;
+     double *fbb, *fbrem;
+{
+  *fbb = bb_brem_bb_luminosity (freqmin, freqmax);
+  *fbrem = bb_brem_brem_luminosity (freqmin, freqmax);
+  return (*fbb + *fbrem);
+}
+
+
 /**********************************************************/
 /** 
  * @brief      Calculates the total luminosity of an AGN type source
@@ -111,6 +182,13 @@ agn_init (r, lum, alpha, freqmin, freqmax, ioniz_or_extract, f)
     emit = num_int (integ_brem, freqmin, freqmax, 1e-4);
 
     *f = emit;
+  }
+  else if (spectype == SPECTYPE_BB_BREM)
+  {
+    double emit_bb, emit_brem;
+    emit = bb_brem_luminosity (freqmin, freqmax, &emit_bb, &emit_brem);
+    *f = emit;
+    Log_silent ("bb_brems band luminosity %.6e--%.6e Hz: bb %.6e brems %.6e total %.6e\n", freqmin, freqmax, emit_bb, emit_brem, *f);
   }
 
   return (*f);                  /* Return the luminosity    */
@@ -360,6 +438,7 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
   int i, iend;
   int n;
   double ftest;
+  double bb_brem_emit_bb, bb_brem_emit_brem, bb_brem_emit_tot;
 
   t = alpha;                    /* NSH 130605, this is a slightly odd statmenent, put in to avoid 03 compilation 
                                    errors, but stemming from the odd behaviour that one can give the AGN a 
@@ -379,6 +458,7 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
   Log_silent ("photo_gen_agn creates nphot %5d photons from %5d to %5d \n", nphot, istart, iend);
   freqmin = f1;
   freqmax = f2;
+  bb_brem_emit_bb = bb_brem_emit_brem = bb_brem_emit_tot = 0.0;
 
   r = (1. + EPSILON) * r;       /* Generate photons just outside the photosphere unnecessary for the AGN perhaps? */
 
@@ -395,6 +475,11 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
         alpha = xband.alpha[n];
       }
     }
+  }
+
+  if (spectype == SPECTYPE_BB_BREM)
+  {
+    bb_brem_emit_tot = bb_brem_luminosity (freqmin, freqmax, &bb_brem_emit_bb, &bb_brem_emit_brem);
   }
 
 
@@ -431,6 +516,23 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
     {
       p[i].freq = get_rand_brem (freqmin, freqmax);
     }
+    else if (spectype == SPECTYPE_BB_BREM)
+    {
+      if (bb_brem_emit_tot <= 0.0)
+      {
+        Error ("photo_gen_agn: BB+brems source has zero luminosity in band %g %g\n", freqmin, freqmax);
+        p[i].freq = freqmin;
+      }
+      else if (random_number (0.0, 1.0) < bb_brem_emit_bb / bb_brem_emit_tot)
+      {
+        p[i].freq = planck (geo.bb_brem_temp_bb, freqmin, freqmax);
+      }
+      else
+      {
+        geo.brem_temp = geo.bb_brem_temp_brem;
+        p[i].freq = get_rand_brem (freqmin, freqmax);
+      }
+    }
     else if (spectype == SPECTYPE_MONO)
     {
       p[i].w = 1. / geo.pcycles;
@@ -453,7 +555,7 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
    * which is purely diagnostic
  */
 
-    if (geo.ioniz_or_extract == CYCLE_EXTRACT && modes.searchlight)
+    if (geo.ioniz_or_extract == CYCLE_EXTRACT && modes.iadvanced && modes.searchlight)
     {
       stuff_v (geo.searchlight_x, p[i].x);
       stuff_v (geo.searchlight_lmn, p[i].lmn);

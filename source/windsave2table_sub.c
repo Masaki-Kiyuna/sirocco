@@ -22,8 +22,13 @@
 
 #include "atomic.h"
 #include "sirocco.h"
+#include "templates.h"
 
 int xedge = FALSE;
+
+int create_h_level_table (int ndom, char rootname[]);
+int create_h_macro_bf_table (int ndom, char rootname[]);
+int create_h_tau_table (int ndom, char rootname[]);
 
 
 /**********************************************************/
@@ -74,6 +79,9 @@ do_windsave2table (root, ion_switch, edge_switch)
     }
 
     create_master_table (ndom, rootname);
+    create_h_level_table (ndom, rootname);
+    create_h_macro_bf_table (ndom, rootname);
+    create_h_tau_table (ndom, rootname);
     create_heat_table (ndom, rootname);
     create_convergence_table (ndom, rootname);
     create_velocity_gradient_table (ndom, rootname);
@@ -426,6 +434,499 @@ create_master_table (ndom, rootname)
 }
 
 
+int
+create_h_level_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[132];
+  int hconf[6];
+  int i, ilev, n, nstart, ndim2, nwind, nplasma;
+  double converge, h1_density, frac[6], den[6];
+  FILE *fptr;
+
+  strcpy (filename, rootname);
+  strcat (filename, ".H.levels.txt");
+  fptr = fopen (filename, "w");
+  if (fptr == NULL)
+  {
+    Error ("create_h_level_table: could not open %s\n", filename);
+    return (-1);
+  }
+
+  for (i = 0; i < 6; i++)
+    hconf[i] = -1;
+
+  for (n = 0; n < nlevels; n++)
+  {
+    if (xconfig[n].z == 1 && xconfig[n].istate == 1 && xconfig[n].macro_info == 1)
+    {
+      ilev = (int) floor (xconfig[n].q_num + 0.5);
+      if (ilev >= 1 && ilev <= 5 && fabs (xconfig[n].q_num - ilev) < 1.0e-6)
+        hconf[ilev] = n;
+      else if (xconfig[n].ilv >= 1 && xconfig[n].ilv <= 5 && hconf[xconfig[n].ilv] < 0)
+        hconf[xconfig[n].ilv] = n;
+    }
+  }
+
+  fprintf (fptr,
+           "# H I macro/NLTE level population diagnostic from den_config(). n*_frac is fractional population within H I; n*_density is the actual level density [cm^-3].\n");
+  fprintf (fptr,
+           "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
+           "r", "rcen", "i", "nwind", "nplasma", "inwind", "converge", "n1_frac", "n2_frac", "n3_frac", "n4_frac", "n5_frac",
+           "n1_density", "n2_density", "n3_density", "n4_density", "n5_density", "t_e", "ne");
+
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    converge = 0.0;
+    h1_density = 0.0;
+    for (ilev = 1; ilev <= 5; ilev++)
+    {
+      frac[ilev] = 0.0;
+      den[ilev] = 0.0;
+    }
+
+    if (nplasma >= 0 && nplasma < NPLASMA)
+    {
+      converge = plasmamain[nplasma].converge_whole;
+      h1_density = plasmamain[nplasma].density[0];
+      for (ilev = 1; ilev <= 5; ilev++)
+      {
+        if (hconf[ilev] >= 0)
+        {
+          den[ilev] = den_config (&plasmamain[nplasma], hconf[ilev]);
+          if (h1_density > 0.0)
+            frac[ilev] = den[ilev] / h1_density;
+        }
+      }
+    }
+
+    fprintf (fptr,
+             "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+             wmain[nwind].r, wmain[nwind].rcen, i, wmain[nwind].nwind, nplasma, wmain[nwind].inwind, converge,
+             frac[1], frac[2], frac[3], frac[4], frac[5], den[1], den[2], den[3], den[4], den[5],
+             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].t_e : 0.0,
+             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].ne : 0.0);
+  }
+
+  fclose (fptr);
+  return (0);
+}
+
+
+/**********************************************************/
+/**
+ * @brief      Write H I level-resolved bound-free macro-atom diagnostics.
+ *
+ * @details
+ *
+ * This is a post-processing diagnostic. It does not change the calculation.
+ * The table exposes saved macro-atom estimators for H I n=1..5 where those
+ * levels can be identified in xconfig. The bf_in/out columns are local packet
+ * interaction counters for the corresponding photoionization continua. They
+ * are useful monitoring proxies, but are not a complete escaped-versus-
+ * reabsorbed free-bound photon budget.
+ *
+ **********************************************************/
+
+int
+create_h_macro_bf_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[132];
+  int hconf[6];
+  int i, ilev, j, k, n, nstart, ndim2, nwind, nplasma;
+  int iph, uplev, bfd_index;
+  double h0_density, hp_density, bf_in, bf_out, bf_abs_proxy;
+  double level_density, level_frac, volume;
+  double ion_rate_vol, ion_rate_cell, strec_rate_vol, rec_rate_vol, rec_rate_cell, rec_energy_cell;
+  double gamma, gamma_e, alpha_st_ne, recomb_sp_ne, recomb_sp_e_ne, recomb_energy_proxy;
+  double photo_heat_cell, threebody_heat_cell, bf_heat_cell;
+  FILE *fptr;
+  TopPhotPtr cont_ptr;
+
+  strcpy (filename, rootname);
+  strcat (filename, ".H.macro_bf.txt");
+  fptr = fopen (filename, "w");
+  if (fptr == NULL)
+  {
+    Error ("create_h_macro_bf_table: could not open %s\n", filename);
+    return (-1);
+  }
+
+  for (i = 0; i < 6; i++)
+    hconf[i] = -1;
+
+  for (n = 0; n < nlevels; n++)
+  {
+    if (xconfig[n].z == 1 && xconfig[n].istate == 1 && xconfig[n].macro_info == 1)
+    {
+      ilev = (int) floor (xconfig[n].q_num + 0.5);
+      if (ilev >= 1 && ilev <= 5 && fabs (xconfig[n].q_num - ilev) < 1.0e-6)
+      {
+        hconf[ilev] = n;
+      }
+      else if (xconfig[n].ilv >= 1 && xconfig[n].ilv <= 5 && hconf[xconfig[n].ilv] < 0)
+      {
+        hconf[xconfig[n].ilv] = n;
+      }
+    }
+  }
+
+  fprintf (fptr,
+           "# H I macro bound-free diagnostic from saved estimators. gamma is photoionization rate estimator [s^-1]; alpha_st_ne and recomb_sp_ne are rates after multiplying by ne [s^-1].\n");
+  fprintf (fptr,
+           "# n_ionvol/cell = level_density*gamma (*cell volume), n_recvol/cell = H+_density*recomb_sp_ne (*cell volume). These are the population-weighted actual process rates.\n");
+  fprintf (fptr,
+           "# n_phheat is the level-resolved macro bound-free photoheating term: n(HI,n)*(gamma_e-gamma)*h*nu_threshold*cell_volume [erg/s/cell]. n_3bheat is the three-body recombination heating term used by macro_bf_heating().\n");
+  fprintf (fptr,
+           "# bf_abs_proxy = bf_in/(bf_in+bf_out) uses local packet bound-free counters and is only a monitoring proxy, not a rigorous free-bound photon reabsorption fraction.\n");
+  fprintf (fptr, "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s",
+           "r", "rcen", "i", "nwind", "nplasma", "inwind", "converge", "t_e", "ne", "H0_den", "Hp_den");
+  for (ilev = 1; ilev <= 5; ilev++)
+  {
+    fprintf (fptr,
+             " %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d",
+             "n_den_", ilev, "n_frac_", ilev, "n_gamma_", ilev, "n_ionvol_", ilev, "n_ioncell_", ilev,
+             "n_astne_", ilev, "n_stvol_", ilev, "n_recne_", ilev, "n_recvol_", ilev, "n_reccell_", ilev,
+             "n_recene_", ilev, "n_recen_", ilev, "n_recerg_", ilev, "n_bfin_", ilev, "n_bfout_", ilev, "n_bfabs_", ilev);
+    fprintf (fptr, " %12s%d %12s%d %12s%d %12s%d",
+             "n_gammae_", ilev, "n_phheat_", ilev, "n_3bheat_", ilev, "n_bfheat_", ilev);
+  }
+  fprintf (fptr, "\n");
+
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    h0_density = hp_density = 0.0;
+    volume = 0.0;
+
+    if (nplasma >= 0 && nplasma < NPLASMA)
+    {
+      h0_density = plasmamain[nplasma].density[0];
+      hp_density = plasmamain[nplasma].density[1];
+      volume = plasmamain[nplasma].vol;
+    }
+
+    fprintf (fptr, "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e",
+             wmain[nwind].r, wmain[nwind].rcen, i, wmain[nwind].nwind, nplasma, wmain[nwind].inwind,
+             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].converge_whole : 0.0,
+             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].t_e : 0.0,
+             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].ne : 0.0, h0_density, hp_density);
+
+    for (ilev = 1; ilev <= 5; ilev++)
+    {
+      gamma = gamma_e = alpha_st_ne = recomb_sp_ne = recomb_sp_e_ne = recomb_energy_proxy = 0.0;
+      level_density = level_frac = 0.0;
+      ion_rate_vol = ion_rate_cell = strec_rate_vol = rec_rate_vol = rec_rate_cell = rec_energy_cell = 0.0;
+      photo_heat_cell = threebody_heat_cell = bf_heat_cell = 0.0;
+      bf_in = bf_out = bf_abs_proxy = 0.0;
+
+      if (nplasma >= 0 && nplasma < NPLASMA && hconf[ilev] >= 0)
+      {
+        n = hconf[ilev];
+        level_density = den_config (&plasmamain[nplasma], n);
+        if (h0_density > 0.0)
+          level_frac = level_density / h0_density;
+        for (j = 0; j < xconfig[n].n_bfu_jump; j++)
+        {
+          iph = xconfig[n].bfu_jump[j];
+          cont_ptr = &phot_top[iph];
+          gamma += macromain[nplasma].gamma_old[xconfig[n].bfu_indx_first + j];
+          gamma_e += macromain[nplasma].gamma_e_old[xconfig[n].bfu_indx_first + j];
+          alpha_st_ne += macromain[nplasma].alpha_st_old[xconfig[n].bfu_indx_first + j] * plasmamain[nplasma].ne;
+
+          if (iph >= 0 && iph < N_PHOT_PROC)
+          {
+            bf_in += plasmamain[nplasma].n_bf_in[iph];
+            bf_out += plasmamain[nplasma].n_bf_out[iph];
+          }
+
+          uplev = cont_ptr->uplev;
+          bfd_index = -1;
+          if (uplev >= 0 && uplev < nlevels)
+          {
+            for (k = 0; k < xconfig[uplev].n_bfd_jump; k++)
+            {
+              if (xconfig[uplev].bfd_jump[k] == iph)
+              {
+                bfd_index = k;
+                break;
+              }
+            }
+          }
+
+          if (bfd_index >= 0)
+          {
+            recomb_sp_ne += macromain[nplasma].recomb_sp[xconfig[uplev].bfd_indx_first + bfd_index] * plasmamain[nplasma].ne;
+            recomb_sp_e_ne += macromain[nplasma].recomb_sp_e[xconfig[uplev].bfd_indx_first + bfd_index] * plasmamain[nplasma].ne;
+            recomb_energy_proxy +=
+              macromain[nplasma].recomb_sp[xconfig[uplev].bfd_indx_first + bfd_index] * plasmamain[nplasma].ne *
+              fabs (xconfig[uplev].ex - xconfig[n].ex);
+          }
+        }
+      }
+
+      if ((bf_in + bf_out) > 0.0)
+        bf_abs_proxy = bf_in / (bf_in + bf_out);
+
+      ion_rate_vol = level_density * gamma;
+      ion_rate_cell = ion_rate_vol * volume;
+      strec_rate_vol = hp_density * alpha_st_ne;
+      rec_rate_vol = hp_density * recomb_sp_ne;
+      rec_rate_cell = rec_rate_vol * volume;
+      rec_energy_cell = hp_density * recomb_energy_proxy * volume * EV2ERGS;
+      if (nplasma >= 0 && nplasma < NPLASMA && hconf[ilev] >= 0)
+      {
+        n = hconf[ilev];
+        for (j = 0; j < xconfig[n].n_bfu_jump; j++)
+        {
+          iph = xconfig[n].bfu_jump[j];
+          cont_ptr = &phot_top[iph];
+          photo_heat_cell +=
+            (macromain[nplasma].gamma_e_old[xconfig[n].bfu_indx_first + j] -
+             macromain[nplasma].gamma_old[xconfig[n].bfu_indx_first + j]) * PLANCK * cont_ptr->freq[0] * level_density * volume;
+          if (cont_ptr->uplev >= 0 && cont_ptr->uplev < nlevels)
+          {
+            threebody_heat_cell +=
+              q_recomb (cont_ptr, plasmamain[nplasma].t_e) * plasmamain[nplasma].ne * plasmamain[nplasma].ne *
+              PLANCK * den_config (&plasmamain[nplasma], cont_ptr->uplev) * volume * cont_ptr->freq[0];
+          }
+        }
+      }
+      bf_heat_cell = photo_heat_cell + threebody_heat_cell;
+
+      fprintf (fptr,
+               " %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e",
+               level_density, level_frac, gamma, ion_rate_vol, ion_rate_cell, alpha_st_ne, strec_rate_vol, recomb_sp_ne, rec_rate_vol,
+               rec_rate_cell, recomb_sp_e_ne, recomb_energy_proxy, rec_energy_cell, bf_in, bf_out, bf_abs_proxy,
+               gamma_e, photo_heat_cell, threebody_heat_cell, bf_heat_cell);
+    }
+    fprintf (fptr, "\n");
+  }
+
+  fclose (fptr);
+  return (0);
+}
+
+
+static LinePtr
+find_h_line_by_levels (levl, levu)
+     int levl, levu;
+{
+  int n;
+  LinePtr best;
+
+  best = NULL;
+  for (n = 0; n < nlines; n++)
+  {
+    if (line[n].z == 1 && line[n].istate == 1 && line[n].levl == levl && line[n].levu == levu)
+    {
+      if (best == NULL || line[n].f > best->f)
+        best = &line[n];
+    }
+  }
+  return best;
+}
+
+static int
+find_h_config_by_level (ilev)
+     int ilev;
+{
+  int n, qlev;
+
+  for (n = 0; n < nlevels; n++)
+  {
+    if (xconfig[n].z == 1 && xconfig[n].istate == 1 && xconfig[n].macro_info == 1)
+    {
+      qlev = (int) floor (xconfig[n].q_num + 0.5);
+      if (qlev == ilev && fabs (xconfig[n].q_num - qlev) < 1.0e-6)
+        return n;
+      if (xconfig[n].ilv == ilev)
+        return n;
+    }
+  }
+  return -1;
+}
+
+
+static TopPhotPtr
+find_h_cont_by_level (ilev)
+     int ilev;
+{
+  int nconf, j, iph;
+
+  nconf = find_h_config_by_level (ilev);
+  if (nconf < 0)
+    return NULL;
+
+  for (j = 0; j < xconfig[nconf].n_bfu_jump; j++)
+  {
+    iph = xconfig[nconf].bfu_jump[j];
+    if (iph >= 0 && iph < nphot_total && phot_top[iph].nlev == nconf)
+      return &phot_top[iph];
+  }
+
+  return NULL;
+}
+
+
+/**********************************************************/
+/**
+ * @brief      Write compact optical-depth diagnostics for H lines and electron scattering.
+ *
+ * @details
+ *
+ * This is a diagnostic-only table. The H-line values are local Sobolev
+ * optical depths for selected collapsed H I transitions where the transition
+ * exists in the loaded atomic data. The electron-scattering values are a
+ * local cell estimate sigma_T * ne * dr_eff and an outward cumulative sum.
+ * They are intended for monitoring, not as a replacement for a full line-of-
+ * sight optical-depth calculation.
+ *
+ **********************************************************/
+
+int
+create_h_tau_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[132];
+  int i, nstart, ndim2, nwind, nplasma;
+  double converge, rcen, dr_eff, tau_es, tau_es_outward, tau_lya, tau_lyb, tau_ha, tau_hb;
+  double tau_lyc, tau_bac, tau_lyc_outward, tau_bac_outward;
+  double sigma_lyc, sigma_bac, e_lyc_ev, e_bac_ev;
+  double tau_es_cell[NDIM2], tau_es_out_cell[NDIM2];
+  double tau_lyc_cell[NDIM2], tau_lyc_out_cell[NDIM2], tau_bac_cell[NDIM2], tau_bac_out_cell[NDIM2];
+  LinePtr lya, lyb, ha, hb;
+  TopPhotPtr lyc, bac;
+  FILE *fptr;
+
+  strcpy (filename, rootname);
+  strcat (filename, ".H.tau.txt");
+  fptr = fopen (filename, "w");
+  if (fptr == NULL)
+  {
+    Error ("create_h_tau_table: could not open %s\n", filename);
+    return (-1);
+  }
+
+  lya = find_h_line_by_levels (1, 2);
+  lyb = find_h_line_by_levels (1, 3);
+  ha = find_h_line_by_levels (2, 3);
+  hb = find_h_line_by_levels (2, 4);
+  lyc = find_h_cont_by_level (1);
+  bac = find_h_cont_by_level (2);
+  sigma_lyc = sigma_bac = e_lyc_ev = e_bac_ev = 0.0;
+  if (lyc != NULL)
+  {
+    e_lyc_ev = PLANCK * lyc->freq[0] / EV2ERGS;
+    sigma_lyc = sigma_phot (lyc, lyc->freq[0] * (1.0 + 1.0e-8));
+  }
+  if (bac != NULL)
+  {
+    e_bac_ev = PLANCK * bac->freq[0] / EV2ERGS;
+    sigma_bac = sigma_phot (bac, bac->freq[0] * (1.0 + 1.0e-8));
+  }
+
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    tau_es_cell[i] = 0.0;
+    tau_es_out_cell[i] = 0.0;
+    tau_lyc_cell[i] = tau_lyc_out_cell[i] = 0.0;
+    tau_bac_cell[i] = tau_bac_out_cell[i] = 0.0;
+    if (nplasma >= 0 && nplasma < NPLASMA)
+    {
+      rcen = wmain[nwind].rcen;
+      if (zdom[ndom].coord_type == SPHERICAL && rcen > 0.0)
+        dr_eff = plasmamain[nplasma].vol / (4.0 * PI * rcen * rcen);
+      else
+        dr_eff = pow (plasmamain[nplasma].vol, 0.3333333333333333);
+      if (dr_eff > 0.0)
+        tau_es_cell[i] = THOMPSON * plasmamain[nplasma].ne * dr_eff;
+      if (dr_eff > 0.0 && lyc != NULL && sigma_lyc > 0.0)
+        tau_lyc_cell[i] = den_config (&plasmamain[nplasma], lyc->nlev) * sigma_lyc * dr_eff * zdom[ndom].fill;
+      if (dr_eff > 0.0 && bac != NULL && sigma_bac > 0.0)
+        tau_bac_cell[i] = den_config (&plasmamain[nplasma], bac->nlev) * sigma_bac * dr_eff * zdom[ndom].fill;
+    }
+  }
+
+  fprintf (fptr,
+           "# Diagnostic local optical depths. tau_line_* are Sobolev optical depths; tau_es_cell = sigma_T ne dr_eff; tau_lyc/bac use H I n=1/2 bound-free sigma at threshold just above edge; *_out is summed from this cell to the outer boundary.\n");
+  fprintf (fptr,
+           "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s\n",
+           "r", "rcen", "i", "nwind", "nplasma", "inwind", "converge", "t_e", "ne", "dvds_ave", "tau_es", "tau_es_out", "tau_lya",
+           "tau_lyb", "tau_ha", "tau_hb", "tau_lyc", "tau_lyc_out", "sig_lyc", "e_lyc_ev", "tau_bac", "tau_bac_out", "sig_bac",
+           "e_bac_ev", "dr_eff");
+
+  tau_es_outward = tau_lyc_outward = tau_bac_outward = 0.0;
+  for (i = ndim2 - 1; i >= 0; i--)
+  {
+    tau_es_outward += tau_es_cell[i];
+    tau_lyc_outward += tau_lyc_cell[i];
+    tau_bac_outward += tau_bac_cell[i];
+    tau_es_out_cell[i] = tau_es_outward;
+    tau_lyc_out_cell[i] = tau_lyc_outward;
+    tau_bac_out_cell[i] = tau_bac_outward;
+  }
+
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    converge = tau_lya = tau_lyb = tau_ha = tau_hb = -1.0;
+    tau_es = tau_es_cell[i];
+    tau_es_outward = tau_es_out_cell[i];
+    tau_lyc = tau_lyc_cell[i];
+    tau_bac = tau_bac_cell[i];
+    tau_lyc_outward = tau_lyc_out_cell[i];
+    tau_bac_outward = tau_bac_out_cell[i];
+    dr_eff = 0.0;
+
+    if (nplasma >= 0 && nplasma < NPLASMA)
+    {
+      converge = plasmamain[nplasma].converge_whole;
+      rcen = wmain[nwind].rcen;
+      if (zdom[ndom].coord_type == SPHERICAL && rcen > 0.0)
+        dr_eff = plasmamain[nplasma].vol / (4.0 * PI * rcen * rcen);
+      else
+        dr_eff = pow (plasmamain[nplasma].vol, 0.3333333333333333);
+      if (lya != NULL)
+        tau_lya = sobolev (&wmain[nwind], wmain[nwind].x, plasmamain[nplasma].density[lya->nion], lya, wmain[nwind].dvds_ave);
+      if (lyb != NULL)
+        tau_lyb = sobolev (&wmain[nwind], wmain[nwind].x, plasmamain[nplasma].density[lyb->nion], lyb, wmain[nwind].dvds_ave);
+      if (ha != NULL)
+        tau_ha = sobolev (&wmain[nwind], wmain[nwind].x, plasmamain[nplasma].density[ha->nion], ha, wmain[nwind].dvds_ave);
+      if (hb != NULL)
+        tau_hb = sobolev (&wmain[nwind], wmain[nwind].x, plasmamain[nplasma].density[hb->nion], hb, wmain[nwind].dvds_ave);
+    }
+
+    fprintf (fptr,
+             "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e\n",
+             wmain[nwind].r, wmain[nwind].rcen, i, wmain[nwind].nwind, nplasma, wmain[nwind].inwind, converge,
+             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].t_e : 0.0,
+             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].ne : 0.0, wmain[nwind].dvds_ave, tau_es, tau_es_outward,
+             tau_lya, tau_lyb, tau_ha, tau_hb, tau_lyc, tau_lyc_outward, sigma_lyc, e_lyc_ev, tau_bac, tau_bac_outward,
+             sigma_bac, e_bac_ev, dr_eff);
+  }
+
+  fclose (fptr);
+  return (0);
+}
 
 
 /**********************************************************/
@@ -564,8 +1065,11 @@ create_heat_table (ndom, rootname)
   c[29] = get_one (ndom, "cool_bf_macro");
   strcpy (column_name[29], "cl_ph_macro");
 
+  c[30] = get_one (ndom, "heat_ind_comp");
+  strcpy (column_name[30], "heat_ind");
+
   /* This should be the maximum number above +1 */
-  ncols = 30;
+  ncols = 31;
 
 
   converge = get_one (ndom, "converge");
@@ -1479,6 +1983,10 @@ get_one (ndom, variable_name)
       else if (strcmp (variable_name, "heat_comp") == 0)
       {
         x[n] = plasmamain[nplasma].heat_comp;
+      }
+      else if (strcmp (variable_name, "heat_ind_comp") == 0)
+      {
+        x[n] = plasmamain[nplasma].heat_ind_comp;
       }
       else if (strcmp (variable_name, "heat_lines") == 0)
       {

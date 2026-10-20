@@ -326,10 +326,12 @@ calculate_ionization (restart_stat)
  * values, loglin (0=linear, 1=log for the wavelength scale), all photons or just wind photons
  */
 
+      xsignal (files.root, "%-20s Start cycle summaries\n", "NOK");
       spectrum_summary (files.lwspec, 0, 6, SPECTYPE_RAW, 1., 1, 0);    /* .log_spec_tot */
       spectrum_summary (files.lwspec_wind, 0, 6, SPECTYPE_RAW, 1., 1, 1);       /* .log_spec_tot_wind */
       disk_photon_summary (files.phot, "w");    /* Save info about the way photons are created and absorbed
                                                    by the disk */
+      xsignal (files.root, "%-20s Finished cycle summaries\n", "NOK");
 #ifdef MPI_ON
     }
 #endif
@@ -358,7 +360,9 @@ calculate_ionization (restart_stat)
     {
 #endif
       xsignal (files.root, "%-20s Checkpoint wind structure\n", "NOK");
+      xsignal (files.root, "%-20s Start checkpoint windsave\n", "NOK");
       wind_save (files.windsave);
+      xsignal (files.root, "%-20s Finished checkpoint windsave\n", "NOK");
       Log_silent ("Saved wind structure in %s after cycle %d\n", files.windsave, geo.wcycle);
 
       /* In a diagnostic mode save the wind file for each cycle (from thread 0) */
@@ -367,26 +371,34 @@ calculate_ionization (restart_stat)
       {
         strcpy (dummy, "");
         sprintf (dummy, "sirocco%02d.wind_save", geo.wcycle);
+        xsignal (files.root, "%-20s Start ioncycle windsave %3d\n", "NOK", geo.wcycle);
         wind_save (dummy);
+        xsignal (files.root, "%-20s Finished ioncycle windsave %3d\n", "NOK", geo.wcycle);
         Log ("Saved wind structure in %s\n", dummy);
       }
       if (modes.make_tables)
       {
         strcpy (dummy, "");
         sprintf (dummy, "diag_%.100s/%.100s.%02d", files.root, files.root, geo.wcycle);
+        xsignal (files.root, "%-20s Start ioncycle tables %3d\n", "NOK", geo.wcycle);
         do_windsave2table (dummy, 0, FALSE);
+        xsignal (files.root, "%-20s Finished ioncycle tables %3d\n", "NOK", geo.wcycle);
       }
       if (modes.make_ioncycle_heat_tables)
       {
         strcpy (dummy, "");
         sprintf (dummy, "diag_%.100s/%.100s.%02d", files.root, files.root, geo.wcycle);
+        xsignal (files.root, "%-20s Start ioncycle heat tables %3d\n", "NOK", geo.wcycle);
         do_windsave2table_ions (dummy, 6, FALSE);
+        xsignal (files.root, "%-20s Finished ioncycle heat tables %3d\n", "NOK", geo.wcycle);
       }
       if (modes.keep_ioncycle_spectra)
       {
         strcpy (dummy, "");
         sprintf (dummy, "sirocco%02d.log_spec_tot", geo.wcycle);
+        xsignal (files.root, "%-20s Start ioncycle spectra %3d\n", "NOK", geo.wcycle);
         spectrum_summary (dummy, 0, 6, SPECTYPE_RAW, 1., 1, 0); /* .log_spec_tot */
+        xsignal (files.root, "%-20s Finished ioncycle spectra %3d\n", "NOK", geo.wcycle);
       }
 #ifdef MPI_ON
     }

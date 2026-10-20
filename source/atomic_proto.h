@@ -11,6 +11,9 @@ int check_xsections(void);
 double q21(struct lines *line_ptr, double t);
 double q12(struct lines *line_ptr, double t);
 double a21(struct lines *line_ptr);
+int is_h1_2s_two_photon_line(struct lines *line_ptr);
+void set_h1_two_photon_emission(int enabled);
+int h1_omukai2001_line_applies(struct lines *line_ptr);
 double upsilon(int n_coll, double u0);
 void skiplines(FILE *fptr, int nskip);
 /* atomicdata_init.c */

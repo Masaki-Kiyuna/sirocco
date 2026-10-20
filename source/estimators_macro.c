@@ -686,7 +686,7 @@ total_bb_cooling (xplasma, t_e)
     {                           //This is a line from a macro atom for which we know
       //the upper and lower level populations
       lower_density = den_config (xplasma, line_ptr->nconfigl);
-      cool_contribution = (lower_density * q12 (line_ptr, t_e)) * xplasma->ne * xplasma->vol * line_ptr->freq * PLANCK;
+      cool_contribution = lower_density * macro_bb_coll_exc_rate (line_ptr, xplasma) * xplasma->vol * line_ptr->freq * PLANCK;
       xplasma->cool_lines_macro += cool_contribution;
     }
     else
@@ -696,14 +696,14 @@ total_bb_cooling (xplasma, t_e)
       //The cooling rate is computed using the scattering probability formalism in KSL's notes on Sirocco.
 
       two_level_atom (line_ptr, xplasma, &lower_density, &upper_density);
-      coll_rate = q21 (line_ptr, t_e) * xplasma->ne * (1. - exp (-H_OVER_K * line_ptr->freq / t_e));
+      coll_rate = macro_bb_coll_deexc_rate (line_ptr, xplasma) * (1. - exp (-H_OVER_K * line_ptr->freq / t_e));
 
       cool_contribution =
         (lower_density * line_ptr->gu / line_ptr->gl -
          upper_density) * coll_rate / (exp (H_OVER_K * line_ptr->freq / t_e) - 1.) * xplasma->vol * line_ptr->freq * PLANCK;
 
 
-      rad_rate = a21 (line_ptr) * p_escape (line_ptr, xplasma);
+      rad_rate = a21 (line_ptr) * line_escape_factor (line_ptr, xplasma);
       cool_contribution *= rad_rate / (rad_rate + coll_rate);
     }
 
@@ -752,7 +752,7 @@ macro_bb_heating (xplasma, t_e)
     {                           //This is a line from a macro atom for which we know
       //the upper and lower level populations
       upper_density = den_config (xplasma, line_ptr->nconfigu);
-      heat_contribution = upper_density * q21 (line_ptr, t_e) * xplasma->ne * xplasma->vol * line_ptr->freq * PLANCK;
+      heat_contribution = upper_density * macro_bb_coll_deexc_rate (line_ptr, xplasma) * xplasma->vol * line_ptr->freq * PLANCK;
       total += heat_contribution;
     }
   }
@@ -863,9 +863,9 @@ bb_simple_heat (xplasma, p, tau_sobolev, nn)
   line_ptr = lin_ptr[nn];
   electron_temperature = xplasma->t_e;
 
-  rad_rate = a21 (line_ptr) * p_escape (line_ptr, xplasma);
+  rad_rate = a21 (line_ptr) * line_escape_factor (line_ptr, xplasma);
 
-  coll_rate = q21 (line_ptr, electron_temperature) * xplasma->ne * (1. - exp (-H_OVER_K * line_ptr->freq / electron_temperature));
+  coll_rate = macro_bb_coll_deexc_rate (line_ptr, xplasma) * (1. - exp (-H_OVER_K * line_ptr->freq / electron_temperature));
 
   normalisation = rad_rate + coll_rate;
 

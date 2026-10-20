@@ -1,0 +1,7 @@
+# Private diagnostic atomic master: collapsed H n=20 with effective n=2 two-photon sink.
+# The extra pseudo line in h20_2ph_lines.dat uses A_eff=(2/8)*8.226 s^-1.
+data/atomic_macro/h20_elem_ions.dat
+data/atomic_macro/h20_levels.dat
+data/atomic_macro/h20_2ph_lines.dat
+data/atomic_macro/h20_phot.dat
+data/atomic/recomb.dat

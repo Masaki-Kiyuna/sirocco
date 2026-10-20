@@ -547,6 +547,38 @@ p_escape (line_ptr, xplasma)
 }
 
 
+/**********************************************************/
+/**
+ * @brief      Escape factor for a bound-bound deactivation.
+ *
+ * @param [in] struct lines *  line_ptr   The line record
+ * @param [in] PlasmaPtr       xplasma    The cell plasma state
+ * @return     The multiplicative escape factor
+ *
+ * @details
+ * The private H I 2s->1s two-photon line surrogate is not a resonant
+ * Ly-alpha photon and should not be attenuated by the Sobolev line
+ * escape probability.  This exception only approximates the escape factor;
+ * the current macro-atom channel still emits a single Ly-alpha-frequency
+ * line packet and does not implement the physical two-photon continuum.
+ * Other lines retain the standard treatment.
+ *
+ **********************************************************/
+
+double
+line_escape_factor (line_ptr, xplasma)
+     struct lines *line_ptr;
+     PlasmaPtr xplasma;
+{
+  if (is_h1_2s_two_photon_line (line_ptr))
+  {
+    return (1.0);
+  }
+
+  return (p_escape (line_ptr, xplasma));
+}
+
+
 
 
 /**********************************************************/

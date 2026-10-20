@@ -569,7 +569,7 @@ xmake_phot (p, f1, f2, ioniz_or_extract, iwind, weight, iphot_start, nphotons)
      photons and substitute searchlight mode.  
    */
 
-  if (ioniz_or_extract == CYCLE_EXTRACT && modes.searchlight)
+  if (ioniz_or_extract == CYCLE_EXTRACT && modes.iadvanced && modes.searchlight)
   {
 
     weight = 1;
@@ -954,7 +954,7 @@ photo_gen_star (p, r, t, weight, f1, f2, spectype, istart, nphot)
       Error_silent ("photo_gen_star: phot no. %d freq %g out of range %g %g\n", i, p[i].freq, freqmin, freqmax);
     }
 
-    if (modes.searchlight && geo.ioniz_or_extract == CYCLE_EXTRACT)
+    if (modes.iadvanced && modes.searchlight && geo.ioniz_or_extract == CYCLE_EXTRACT)
     {
       stuff_v (geo.searchlight_x, p[i].x);
       stuff_v (geo.searchlight_lmn, p[i].lmn);

@@ -90,7 +90,7 @@ photo_gen_disk (p, weight, f1, f2, spectype, istart, nphot)
 
 
     /* First set the photon postion for the  special case of searchlight mode */
-    if (modes.searchlight && geo.ioniz_or_extract == CYCLE_EXTRACT)
+    if (modes.iadvanced && modes.searchlight && geo.ioniz_or_extract == CYCLE_EXTRACT)
     {
       if (i == istart)
       {

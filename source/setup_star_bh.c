@@ -199,7 +199,7 @@ get_bl_and_agn_params (lstar)
     geo.star_radiation = 0;     // 70b - AGN do not have a star at the center */
     geo.bl_radiation = 0;
     if (geo.agn_radiation)
-      get_spectype (geo.agn_radiation, "Central_object.rad_type_to_make_wind(bb,models,power,cloudy,brems,mono)", &geo.agn_ion_spectype);
+      get_spectype (geo.agn_radiation, "Central_object.rad_type_to_make_wind(bb,models,power,cloudy,brems,bb_brems,mono)", &geo.agn_ion_spectype);
 
     if (geo.agn_ion_spectype == SPECTYPE_BB_FCOL)
     {
@@ -287,7 +287,7 @@ get_bl_and_agn_params (lstar)
 
     /* if we have a "blackbody agn" the luminosity is set by Stefan Boltzmann law
        once the AGN blackbody temp is read in, otherwise set by user */
-    if (geo.agn_ion_spectype != SPECTYPE_BB)
+    if (geo.agn_ion_spectype != SPECTYPE_BB && geo.agn_ion_spectype != SPECTYPE_BB_BREM)
     {
       rddoub ("Central_object.luminosity(ergs/s)", &geo.lum_agn);
       Log ("OK, the black hole luminosity will be about %.2e the disk lum\n", geo.lum_agn / xbl);
@@ -327,6 +327,25 @@ get_bl_and_agn_params (lstar)
       rddoub ("Central_object.blackbody_temp(K)", &geo.alpha_agn);
       geo.lum_agn = 4 * PI * geo.rstar * geo.rstar * STEFAN_BOLTZMANN * pow (geo.alpha_agn, 4.);
       Log ("OK, the black hole/AGN lum will be about %.2e the disk lum\n", geo.lum_agn / xbl);
+    }
+    else if (geo.agn_ion_spectype == SPECTYPE_BB_BREM)
+    {
+      geo.bb_brem_lum_bb = lstar;
+      geo.bb_brem_temp_bb = 5000.0;
+      geo.bb_brem_lum_brem = 0.0;
+      geo.bb_brem_temp_brem = 1.16e8;
+      geo.brem_alpha = -0.2;
+      rddoub ("Central_object.blackbody_luminosity(ergs/s)", &geo.bb_brem_lum_bb);
+      rddoub ("Central_object.blackbody_temp(K)", &geo.bb_brem_temp_bb);
+      rddoub ("Central_object.bremsstrahlung_luminosity(ergs/s)", &geo.bb_brem_lum_brem);
+      rddoub ("Central_object.bremsstrahlung_temp(K)", &geo.bb_brem_temp_brem);
+      if (modes.iadvanced)
+        rddoub ("@Central_object.bremsstrahlung_alpha", &geo.brem_alpha);
+      geo.alpha_agn = geo.bb_brem_temp_bb;
+      geo.brem_temp = geo.bb_brem_temp_brem;
+      geo.lum_agn = geo.bb_brem_lum_bb + geo.bb_brem_lum_brem;
+      Log ("Private BB+brems source: r_in %.6e cm, L_bb %.6e erg/s, T_bb %.6e K, L_brems %.6e erg/s, T_brems %.6e K, alpha %.6e, L_total %.6e erg/s\n",
+           geo.rstar, geo.bb_brem_lum_bb, geo.bb_brem_temp_bb, geo.bb_brem_lum_brem, geo.bb_brem_temp_brem, geo.brem_alpha, geo.lum_agn);
     }
 
     /* JM 1502 -- lines to add a low frequency power law cutoff. accessible

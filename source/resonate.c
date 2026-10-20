@@ -1052,6 +1052,11 @@ scatter (p, nres, nnscat)
 
         kpkt_choice = random_number (0.0, 1.0); //random number for kpkt choice
 
+        if (*nres - NLINES - 1 >= 0 && *nres - NLINES - 1 < N_PHOT_PROC)
+        {
+          xplasma->n_bf_in[*nres - NLINES - 1] += 1;
+        }
+
         if (prob_kpkt > kpkt_choice)
         {
           macro_gov (p, nres, 2, &which_out);   //routine to deal with kpkt
@@ -1059,6 +1064,11 @@ scatter (p, nres, nnscat)
         else
         {
           macro_gov (p, nres, 1, &which_out);   //routine to deal with macro atom excitation
+        }
+
+        if (which_out == MATOM && *nres - NLINES - 1 >= 0 && *nres - NLINES - 1 < N_PHOT_PROC)
+        {
+          xplasma->n_bf_out[*nres - NLINES - 1] += 1;
         }
 
         /* This ends the calculation for dealing with free-bound absorption of a macro atom */
