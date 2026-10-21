@@ -442,7 +442,8 @@ create_h_level_table (ndom, rootname)
   char filename[132];
   int hconf[6];
   int i, ilev, n, nstart, ndim2, nwind, nplasma;
-  double converge, h1_density, frac[6], den[6];
+  double converge, h1_density, hp_density, frac[6], den[6];
+  double qsp_proton, qsp_electron, csp, cps, mix_over_a2ph, two_photon_branch;
   FILE *fptr;
 
   strcpy (filename, rootname);
@@ -472,9 +473,14 @@ create_h_level_table (ndom, rootname)
   fprintf (fptr,
            "# H I macro/NLTE level population diagnostic from den_config(). n*_frac is fractional population within H I; n*_density is the actual level density [cm^-3].\n");
   fprintf (fptr,
-           "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
+           "# l-mixing is a passive reference diagnostic only: q(2s->2p) at 1e4 K uses proton=4.74e-4 and electron=0.57e-4 cm^3/s, scaled as T^-1/2; Cps=Csp/3 by degenerate detailed balance. It does not modify populations or the adopted collapsed fraction.\n");
+  fprintf (fptr,
+           "# mix_over_A2ph=(Csp+Cps)/8.226 tests whether mixing is faster than two-photon decay only; it is necessary but not sufficient for n(2s)/n(2)=1/4 because differential feeding, photoionization, and effective Ly-alpha loss are omitted. branch_2ph=8.226/(8.226+Csp) omits those same competing processes.\n");
+  fprintf (fptr,
+           "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
            "r", "rcen", "i", "nwind", "nplasma", "inwind", "converge", "n1_frac", "n2_frac", "n3_frac", "n4_frac", "n5_frac",
-           "n1_density", "n2_density", "n3_density", "n4_density", "n5_density", "t_e", "ne");
+           "n1_density", "n2_density", "n3_density", "n4_density", "n5_density", "t_e", "ne", "Csp_ref", "Cps_ref",
+           "mix_A2ph", "branch_2ph");
 
   nstart = zdom[ndom].nstart;
   ndim2 = zdom[ndom].ndim2;
@@ -485,6 +491,9 @@ create_h_level_table (ndom, rootname)
     nplasma = wmain[nwind].nplasma;
     converge = 0.0;
     h1_density = 0.0;
+    hp_density = 0.0;
+    csp = cps = mix_over_a2ph = 0.0;
+    two_photon_branch = 1.0;
     for (ilev = 1; ilev <= 5; ilev++)
     {
       frac[ilev] = 0.0;
@@ -495,6 +504,16 @@ create_h_level_table (ndom, rootname)
     {
       converge = plasmamain[nplasma].converge_whole;
       h1_density = plasmamain[nplasma].density[0];
+      hp_density = plasmamain[nplasma].density[1];
+      if (plasmamain[nplasma].t_e > 0.0)
+      {
+        qsp_proton = 4.74e-4 * sqrt (1.0e4 / plasmamain[nplasma].t_e);
+        qsp_electron = 0.57e-4 * sqrt (1.0e4 / plasmamain[nplasma].t_e);
+        csp = hp_density * qsp_proton + plasmamain[nplasma].ne * qsp_electron;
+        cps = csp / 3.0;
+        mix_over_a2ph = (csp + cps) / 8.226;
+        two_photon_branch = 8.226 / (8.226 + csp);
+      }
       for (ilev = 1; ilev <= 5; ilev++)
       {
         if (hconf[ilev] >= 0)
@@ -507,11 +526,12 @@ create_h_level_table (ndom, rootname)
     }
 
     fprintf (fptr,
-             "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+             "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
              wmain[nwind].r, wmain[nwind].rcen, i, wmain[nwind].nwind, nplasma, wmain[nwind].inwind, converge,
              frac[1], frac[2], frac[3], frac[4], frac[5], den[1], den[2], den[3], den[4], den[5],
              (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].t_e : 0.0,
-             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].ne : 0.0);
+             (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].ne : 0.0,
+             csp, cps, mix_over_a2ph, two_photon_branch);
   }
 
   fclose (fptr);
