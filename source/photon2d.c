@@ -488,7 +488,7 @@ translate_in_wind (w, p, tau_scat, tau, nres)
     {
       xplasma->nscat_es++;
     }
-    if (p->nres > NLINES)
+    if (nres_is_bf (p->nres))
     {
       xplasma->nscat_bf++;
     }
@@ -537,7 +537,7 @@ translate_in_wind (w, p, tau_scat, tau, nres)
       radiation (p, ds_current);
     }
 
-    if (*nres > -1 && *nres <= NLINES && *nres == p->nres && istat == P_SCAT)
+    if (nres_is_line (*nres) && *nres == p->nres && istat == P_SCAT)
     {
       if (ds_current < wmain[p->grid].dfudge)
       {
@@ -548,7 +548,7 @@ translate_in_wind (w, p, tau_scat, tau, nres)
     }
 
     p->nres = *nres;
-    if (p->nres > -1 && p->nres < nlines)
+    if (nres_is_line (p->nres))
       p->line_res = p->nres;
   }
 

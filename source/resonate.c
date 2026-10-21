@@ -955,7 +955,7 @@ scatter (p, nres, nnscat)
        For b-b and b-f processes it is first necessary to determine the
        process by which re-emission occurs. (SS). */
 
-    if (*nres > (-1) && *nres < NLINES)
+    if (nres_is_line (*nres))
     {
       /* It's a bb line - we can go straight to macro_gov since we know that
          we don't want a k-packet immediately. macro_gov now makes the decision
@@ -964,8 +964,13 @@ scatter (p, nres, nnscat)
       macro_gov (p, nres, 1, &which_out);
     }
 
-    else if (*nres > NLINES)
+    else if (nres_is_bf (*nres))
     {
+      if (p->emission_process == EMISSION_PROCESS_TWO_PHOTON)
+      {
+        p->two_photon_bf_absorptions++;
+      }
+
       /* It was a photoionisation process.
          For this case we need to decide first whether to excite
          a macro atom directly or to create a k-packet. */
@@ -1188,7 +1193,7 @@ scatter (p, nres, nnscat)
      for a resonanant scatter. Note that nres may have changed especially for macro-atoms */
 
   p->nres = *nres;
-  if (*nres > NRES_ES && *nres < nlines)
+  if (nres_is_line (*nres))
   {
     p->freq = lin_ptr[*nres]->freq;
   }
@@ -1209,7 +1214,7 @@ scatter (p, nres, nnscat)
 
     compton_scatter (p);
   }
-  else if (*nres == NRES_FF || *nres > NRES_BF || geo.scatter_mode == SCATTER_MODE_ISOTROPIC)
+  else if (nres_is_continuum_emission (*nres) || geo.scatter_mode == SCATTER_MODE_ISOTROPIC)
   {
     randvec (z_prime, 1.0);
     stuff_v (z_prime, p->lmn);

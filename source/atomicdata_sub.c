@@ -664,46 +664,26 @@ q12 (line_ptr, t)
 
 
 #define A21_CONSTANT 7.429297e-22       // 8 * PI * PI * E * E / (MELEC * C * C * C)
-#define H1_2S_TWO_PHOTON_A21 8.226
-#define H1_N2_COLLAPSED_TWO_PHOTON_A21 (H1_2S_TWO_PHOTON_A21 * 0.25)
-
-static int h1_two_photon_emission_enabled = 1;
-
 struct lines *a21_line_ptr;
 double a21_a;
 
 
-void
-set_h1_two_photon_emission (enabled)
-     int enabled;
-{
-  h1_two_photon_emission_enabled = enabled ? 1 : 0;
-}
-
-
 /**********************************************************/
 /**
- * @brief      Identify a private H I 2s->1s two-photon line surrogate.
+ * @brief      Identify the obsolete private H I two-photon pseudo-line.
  *
  * @param [in] struct lines *  line_ptr   The line record to test
- * @return     1 if this line should use the private two-photon treatment
+ * @return     1 if this line is the obsolete pseudo-line that must be rejected
  *
  * @details
- * This deliberately keys on the very small oscillator strength used only
- * in private diagnostic variants, so the standard h20 atomic data and the
- * original split-H f=1e-6 weak 1s-2s lines are unchanged.  This private
- * variant is deliberately limited to collapsed-n H, where gu=8 and only the
- * statistical 2s fraction of the n=2 population receives the two-photon rate.
- * It is not a physical two-photon emissivity: the macro-atom still emits one
- * line packet at the Ly-alpha frequency instead of two continuum photons.
- * Consequently it cannot model the two-photon spectrum or its
- * frequency-dependent reabsorption and must not be treated as validated
- * production physics.
+ * This deliberately keys on the very small oscillator strength used only by
+ * the former private surrogate.  The true implementation uses a separate
+ * TwoPhotonMacro record and must never route this process through line data.
  *
  **********************************************************/
 
 int
-is_h1_2s_two_photon_line (line_ptr)
+is_obsolete_h1_two_photon_pseudoline (line_ptr)
      struct lines *line_ptr;
 {
   if (line_ptr == NULL)
@@ -741,15 +721,6 @@ a21 (line_ptr)
      struct lines *line_ptr;
 {
   double freq;
-
-  if (is_h1_2s_two_photon_line (line_ptr))
-  {
-    if (h1_two_photon_emission_enabled == 0)
-    {
-      return (0.0);
-    }
-    return (H1_N2_COLLAPSED_TWO_PHOTON_A21);
-  }
 
   if (a21_line_ptr != line_ptr)
   {

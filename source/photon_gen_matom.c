@@ -182,6 +182,9 @@ photo_gen_kpkt (p, weight, photstart, nphot)
 
     pp.freq = 0.0;
     pp.grid = icell;
+    pp.emission_process = EMISSION_PROCESS_OTHER;
+    pp.emission_config = -1;
+    pp.two_photon_bf_absorptions = 0;
 
     /* This following block is a bad way of doing it - kpkt could be modified to
        do what we want in a more elegant way. */
@@ -208,7 +211,11 @@ photo_gen_kpkt (p, weight, photstart, nphot)
     }
 
     p[n].freq = pp.freq;
-    p[n].nres = p[n].line_res = nres;
+    p[n].nres = nres;
+    p[n].line_res = nres_is_line (nres) ? nres : NRES_NOT_SET;
+    p[n].emission_process = pp.emission_process;
+    p[n].emission_config = pp.emission_config;
+    p[n].two_photon_bf_absorptions = pp.two_photon_bf_absorptions;
     p[n].w = pp.w;
 
 
@@ -368,6 +375,9 @@ photo_gen_matom (p, weight, photstart, nphot)
 
     pp.freq = 0.0;
     pp.grid = icell;
+    pp.emission_process = EMISSION_PROCESS_OTHER;
+    pp.emission_config = -1;
+    pp.two_photon_bf_absorptions = 0;
 
     /* This following block is a bad way of doing it but it'll do as
        a quick and dirty test for now. Really kpkt should be modified to
@@ -390,7 +400,11 @@ photo_gen_matom (p, weight, photstart, nphot)
 
 
     p[n].freq = pp.freq;
-    p[n].nres = p[n].line_res = nres;
+    p[n].nres = nres;
+    p[n].line_res = nres_is_line (nres) ? nres : NRES_NOT_SET;
+    p[n].emission_process = pp.emission_process;
+    p[n].emission_config = pp.emission_config;
+    p[n].two_photon_bf_absorptions = pp.two_photon_bf_absorptions;
     p[n].frame = F_LOCAL;
 
 

@@ -155,6 +155,7 @@ set(PYTHON_SOURCE
     source/synonyms.c
     source/time.c
     source/trans_phot.c
+    source/two_photon.c
     source/vvector.c
     source/walls.c
     source/wind.c

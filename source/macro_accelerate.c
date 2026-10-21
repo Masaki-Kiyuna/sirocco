@@ -41,7 +41,7 @@ calc_matom_matrix (xplasma, matom_matrix)
   struct auger *auger_ptr;
   struct topbase_phot *cont_ptr;
   double rad_rate, coll_rate;
-  int n, i, nn, mm, iauger, nauger;
+  int n, i, nn, mm, iauger, nauger, index_two_photon;
   double Qcont_kpkt, bb_cont, sp_rec_rate, bf_cont, lower_density, density_ratio;
   double kpacket_to_rpacket_rate, norm, Rcont, auger_rate;
   int matrix_error;
@@ -132,6 +132,18 @@ calc_matom_matrix (xplasma, matom_matrix)
         //deactivation back to r-packet isn't possible for the Auger process
         Q_norm[uplvl] += Qcont + Qcont_kpkt;
       }
+    }
+
+    /* H I 2s->1s two-photon decay.  This is a radiative continuum
+       deactivation and therefore has no Sobolev escape factor. */
+    index_two_photon = two_photon_process_for_upper (uplvl);
+    if (index_two_photon >= 0)
+    {
+      target_level = two_photon[index_two_photon].nconfigl;
+      rad_rate = two_photon_rate (index_two_photon);
+      Q_matrix[uplvl][target_level] += Qcont = rad_rate * xconfig[target_level].ex;
+      R_matrix[uplvl][uplvl] += Rcont = rad_rate * (xconfig[uplvl].ex - xconfig[target_level].ex);
+      Q_norm[uplvl] += Qcont + Rcont;
     }
 
     /* bound-free */
@@ -630,11 +642,11 @@ f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max)
   struct lines *line_ptr;
   struct topbase_phot *cont_ptr;
   int uplvl;
-  double eprbs[NBBJUMPS + NBFJUMPS], eprbs_band[NBBJUMPS + NBFJUMPS];
+  double eprbs[NBBJUMPS + NBFJUMPS + NTWO_PHOTON_MAX];
   double penorm, penorm_band;
   double sp_rec_rate;
-  int n, m;
-  int nbbd, nbfd;
+  int n;
+  int nbbd, nbfd, index_two_photon;
 //OLD  double t_e, ne;
   double ne;
   double bb_cont;
@@ -660,14 +672,12 @@ f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max)
 
   // Start by setting everything to 0
 
-  m = 0;                        //m counts the total number of possible ways to leave the level
   penorm = 0.0;                 //stores the total emission probability
   penorm_band = 0.0;
 
-  for (n = 0; n < nbbd + nbfd; n++)
+  for (n = 0; n < nbbd + nbfd + NTWO_PHOTON_MAX; n++)
   {
     eprbs[n] = 0;               //stores the individual emission probabilities SS
-    eprbs_band[n] = 0;
   }
   /* Finished zeroing. */
 
@@ -694,9 +704,7 @@ f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max)
     penorm += eprbs[n];
     if ((line_ptr->freq > freq_min) && (line_ptr->freq < freq_max))     // correct range
     {
-      eprbs_band[m] = eprbs[n];
-      penorm_band += eprbs_band[m];
-      m++;
+      penorm_band += eprbs[n];
     }
   }
 
@@ -721,7 +729,6 @@ f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max)
     penorm += eprbs[n + nbbd];
     if (cont_ptr->freq[0] < freq_max && cont_ptr->freq[cont_ptr->np - 1] > freq_min)    //means that it may contribute
     {
-      eprbs_band[m] = eprbs[n + nbbd];
       fthresh = cont_ptr->freq[0];      //first frequency in list
       flast = cont_ptr->freq[cont_ptr->np - 1]; //last frequency in list
       bf_int_full = scaled_alpha_sp_integral_band_limited (cont_ptr, xplasma, 0, fthresh, flast);
@@ -749,9 +756,16 @@ f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max)
         Error ("Something wrong here: f_matom_emit_accelerate broke the law!");
         bf_int_inrange = 0;
       }
-      penorm_band += eprbs_band[m] * bf_int_inrange / bf_int_full;
-      m++;
+      penorm_band += eprbs[n + nbbd] * bf_int_inrange / bf_int_full;
     }
+  }
+
+  index_two_photon = two_photon_process_for_upper (uplvl);
+  if (index_two_photon >= 0)
+  {
+    eprbs[nbbd + nbfd] = two_photon_energy_weight (uplvl);
+    penorm += eprbs[nbbd + nbfd];
+    penorm_band += eprbs[nbbd + nbfd] * two_photon_band_fraction (index_two_photon, freq_min, freq_max);
   }
 
   /* catch the case where penorm == 0 for e.g. ground states with zero emission probability */

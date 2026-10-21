@@ -115,7 +115,7 @@ extract (w, p, itype)
 
   if (itype == PTYPE_WIND)
   {
-    if (geo.scatter_mode == SCATTER_MODE_THERMAL && p_in.nres <= NLINES && p_in.nres > -1)
+    if (geo.scatter_mode == SCATTER_MODE_THERMAL && nres_is_line (p_in.nres))
     {
       /* Bound - Bound Scattering 
 
@@ -337,7 +337,7 @@ extract (w, p, itype)
 
 
     }
-    else if (pp.nres > -1 && pp.nres < NLINES)
+    else if (nres_is_line (pp.nres))
     {
 
       /*
@@ -593,7 +593,7 @@ extract_one (w, pp, nspec)
        */
       if (geo.reverb != REV_NONE)
       {
-        if (geo.reverb_filter_lines == -2 || pstart.nscat > 0 || pstart.origin > 9 || (pstart.nres > -1 && pstart.nres < nlines))
+        if (geo.reverb_filter_lines == -2 || pstart.nscat > 0 || pstart.origin > 9 || nres_is_line (pstart.nres))
         {
           /*If this photon has scattered, been reprocessed, 
              or originated in the wind it 's important

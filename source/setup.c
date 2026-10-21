@@ -863,20 +863,17 @@ fixed concentration file. \n\
   geo.h1_two_photon_emission = TRUE;
   if (rdpar_keyword_exists ("@Hydrogen.two_photon_emission"))
   {
-    strcpy (answer, "on");
-    geo.h1_two_photon_emission = rdchoice ("@Hydrogen.two_photon_emission(on,off)", "1,0", answer);
+    strcpy (answer, "continuum");
+    geo.h1_two_photon_emission = rdchoice ("@Hydrogen.two_photon_emission(off,continuum)", "0,1", answer);
     if (geo.h1_two_photon_emission == FALSE)
     {
-      Log
-        ("Warning: private option @Hydrogen.two_photon_emission=off. The incomplete collapsed-H two-photon line surrogate is disabled; true Ly-alpha and all other transitions are unchanged. This is the recommended setting until a continuum implementation is available.\n");
+      Log ("Hydrogen two-photon continuum is disabled.\n");
     }
     else
     {
-      Error
-        ("WARNING: private H I two-photon treatment is an incomplete surrogate, not a physical two-photon continuum. It emits the entire decay energy as one Ly-alpha-frequency line packet with escape_factor=1; the continuum frequency distribution, frequency-dependent reabsorption, and emergent Ly-alpha luminosity are therefore not reliable. Use @Hydrogen.two_photon_emission=off for production calculations until the continuum channel is implemented and validated.\n");
+      Log ("Hydrogen two-photon continuum is enabled.\n");
     }
   }
-  set_h1_two_photon_emission (geo.h1_two_photon_emission);
 
   geo.ff_gaunt_mode = FF_GAUNT_INTEGRATED;
   geo.diag_indcomp_bands = FALSE;

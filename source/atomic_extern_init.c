@@ -22,6 +22,10 @@ IonPtr ion;
 
 ConfigPtr xconfig;
 
+TwoPhotonPtr two_photon;
+int n_two_photon;
+int two_photon_from_config[NLEVELS];
+
 AugerPtr auger_macro;
 
 LinePtr line, lin_ptr[NLINES];  /* line[] is the actual structure array that contains all the data, *lin_ptr

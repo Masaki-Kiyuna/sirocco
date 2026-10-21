@@ -25,6 +25,34 @@
 int init_stuff_phot = 0;
 size_t sizeofphot;
 
+int
+nres_is_line (nres)
+     int nres;
+{
+  return (nres >= 0 && nres < nlines);
+}
+
+int
+nres_is_bf (nres)
+     int nres;
+{
+  return (nres > NRES_BF && nres <= NRES_BF + nphot_total);
+}
+
+int
+nres_is_activation (nres)
+     int nres;
+{
+  return (nres_is_line (nres) || nres_is_bf (nres));
+}
+
+int
+nres_is_continuum_emission (nres)
+     int nres;
+{
+  return (nres == NRES_FF || nres == NRES_TWO_PHOTON || nres_is_bf (nres));
+}
+
 /**********************************************************/
 /**
  * @brief      Simply initialize some of the variables in a 
@@ -52,6 +80,9 @@ init_dummy_phot (p)
   p->freq = p->freq_orig = 0.0;
   p->frame = F_OBSERVER;
   p->origin = p->origin_orig = PTYPE_DUMMY;
+  p->emission_process = EMISSION_PROCESS_UNSET;
+  p->emission_config = -1;
+  p->two_photon_bf_absorptions = 0;
   p->np = -1;
   p->tau = p->ds = 0;
 
@@ -104,6 +135,9 @@ stuff_phot (pin, pout)
   pout->nscat = pin->nscat;
   pout->nnscat = pin->nnscat;
   pout->grid = pin->grid;
+  pout->emission_process = pin->emission_process;
+  pout->emission_config = pin->emission_config;
+  pout->two_photon_bf_absorptions = pin->two_photon_bf_absorptions;
   pout->origin = pin->origin;
   pout->origin_orig = pin->origin_orig;
   pout->nnscat = pin->nnscat;

@@ -79,7 +79,7 @@ macro_gov (p, nres, matom_or_kpkt, which_out)
     escape = FALSE;
 
     /*  it's a bb transition  without the full macro atom treatment. */
-    if (*nres > (-1) && *nres < NLINES && (geo.macro_simple == TRUE || lin_ptr[*nres]->macro_info == FALSE))
+    if (nres_is_line (*nres) && (geo.macro_simple == TRUE || lin_ptr[*nres]->macro_info == FALSE))
     {
       fake_matom_bb (p, nres, &escape);
 
@@ -102,7 +102,7 @@ macro_gov (p, nres, matom_or_kpkt, which_out)
        In the new "simple emissivity" approach, we should never satisfy the do loop, and so an error
        is thrown and we exit. */
 
-    else if (*nres > NLINES && (phot_top[*nres - NLINES - 1].macro_info == FALSE || geo.macro_simple == TRUE))
+    else if (nres_is_bf (*nres) && (phot_top[*nres - NLINES - 1].macro_info == FALSE || geo.macro_simple == TRUE))
     {
 #if BF_SIMPLE_EMISSIVITY_APPROACH
       Error ("Macro_gov: Error - trying to access fake_matom_bf in alternate bf treatment.\n");
@@ -142,11 +142,11 @@ macro_gov (p, nres, matom_or_kpkt, which_out)
     if (matom_or_kpkt == MATOM)
     {
       uplvl = 0;
-      if (*nres < NLINES)
+      if (nres_is_line (*nres))
       {
         uplvl = lin_ptr[*nres]->nconfigu;
       }
-      else if (*nres > NLINES)
+      else if (nres_is_bf (*nres))
       {
         uplvl = phot_top[*nres - NLINES - 1].uplev;
       }
@@ -205,7 +205,7 @@ macro_gov (p, nres, matom_or_kpkt, which_out)
       {
 
         /* if it's a bb transition of a full macro atom  */
-        if (*nres > (-1) && *nres < NLINES && geo.macro_simple == FALSE && lin_ptr[*nres]->macro_info == TRUE)
+        if (nres_is_line (*nres) && geo.macro_simple == FALSE && lin_ptr[*nres]->macro_info == TRUE)
         {
           n_jump = matom (p, nres, &escape);
 
@@ -224,7 +224,7 @@ macro_gov (p, nres, matom_or_kpkt, which_out)
         }
 
         /* if it's bf transition of a full macro atom. */
-        else if (*nres > NLINES && phot_top[*nres - NLINES - 1].macro_info == TRUE && geo.macro_simple == FALSE)
+        else if (nres_is_bf (*nres) && phot_top[*nres - NLINES - 1].macro_info == TRUE && geo.macro_simple == FALSE)
         {
           n_jump = matom (p, nres, &escape);
 
@@ -542,6 +542,7 @@ macro_pops_fill_rate_matrix (MacroPtr mplasma, PlasmaPtr xplasma, double xne, in
   int upper, lower;
   int index_fast_col;
   int index_ion, index_lvl;
+  int index_two_photon;
   double rate;
   int n_macro_lvl = 0;
   struct lines *line_ptr;
@@ -668,6 +669,21 @@ macro_pops_fill_rate_matrix (MacroPtr mplasma, PlasmaPtr xplasma, double xne, in
         if (rate < 0.0 || sane_check (rate))
         {
           Error ("macro_pops: bbd rate is %8.4e in plasma cell/matom %i\n", rate, xplasma->nplasma);
+        }
+      }
+
+      index_two_photon = two_photon_process_for_upper (index_lvl);
+      if (index_two_photon >= 0)
+      {
+        rate = two_photon_rate (index_two_photon);
+        upper = conf_to_matrix[index_lvl];
+        lower = conf_to_matrix[two_photon[index_two_photon].nconfigl];
+        rate_matrix[upper][upper] += -1.0 * rate;
+        rate_matrix[lower][upper] += rate;
+        radiative_flag[two_photon[index_two_photon].nconfigl][index_lvl] = 1;
+        if (rate < 0.0 || sane_check (rate))
+        {
+          Error ("macro_pops: two-photon rate is %8.4e in plasma cell/matom %i\n", rate, xplasma->nplasma);
         }
       }
 

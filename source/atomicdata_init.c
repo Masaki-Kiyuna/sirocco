@@ -103,11 +103,28 @@ init_atomic_data ()
     Error ("There is a problem in allocating memory for the config structure\n");
     exit (0);
   }
+
   else
   {
     Log_silent
       ("Allocated %10d bytes for each of %6d elements of     config totaling %10.1f Mb \n",
        sizeof (config_dummy), NLEVELS, 1.e-6 * NLEVELS * sizeof (config_dummy));
+  }
+
+  if (two_photon != NULL)
+  {
+    free (two_photon);
+  }
+  two_photon = (TwoPhotonPtr) calloc (sizeof (two_photon_dummy), NTWO_PHOTON_MAX);
+  if (two_photon == NULL)
+  {
+    Error ("There is a problem allocating the two-photon process structure\n");
+    exit (0);
+  }
+  n_two_photon = 0;
+  for (n = 0; n < NLEVELS; n++)
+  {
+    two_photon_from_config[n] = -1;
   }
 
   if (line != NULL)

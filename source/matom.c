@@ -16,7 +16,8 @@
 
 /* External variables for use in matom */
 
-double jprbs_known[NLEVELS_MACRO][2 * (NBBJUMPS + NBFJUMPS)], eprbs_known[NLEVELS_MACRO][2 * (NBBJUMPS + NBFJUMPS)];
+double jprbs_known[NLEVELS_MACRO][2 * (NBBJUMPS + NBFJUMPS) + NAUGER + NTWO_PHOTON_MAX];
+double eprbs_known[NLEVELS_MACRO][2 * (NBBJUMPS + NBFJUMPS) + NAUGER + NTWO_PHOTON_MAX];
 double pjnorm_known[NLEVELS_MACRO], penorm_known[NLEVELS_MACRO];
 int prbs_known[NLEVELS_MACRO];
 int matom_cell = -1;
@@ -261,8 +262,8 @@ matom (p, nres, escape)
   struct auger *auger_ptr;
   int uplvl, uplvl_old;
 //OLD  int icheck;
-  double jprbs[2 * (NBBJUMPS + NBFJUMPS)];
-  double eprbs[NBBJUMPS + NBFJUMPS];
+  double jprbs[2 * (NBBJUMPS + NBFJUMPS) + NAUGER + NTWO_PHOTON_MAX];
+  double eprbs[2 * (NBBJUMPS + NBFJUMPS) + NAUGER + NTWO_PHOTON_MAX];
   double pjnorm, penorm;
   double threshold, run_tot;
   double sp_rec_rate;
@@ -277,6 +278,7 @@ matom (p, nres, escape)
   MacroPtr mplasma;
   int z;
   int nauger, iauger, target_level;
+  int ntwo_photon, index_two_photon;
   double auger_rate;
 
 
@@ -303,13 +305,13 @@ matom (p, nres, escape)
    */
 
   uplvl = 0;
-  if (*nres < NLINES)
+  if (nres_is_line (*nres))
   {
     uplvl = lin_ptr[*nres]->nconfigu;
     z = lin_ptr[*nres]->z;
 
   }
-  else if (*nres > NLINES)
+  else if (nres_is_bf (*nres))
   {
     uplvl = phot_top[*nres - NLINES - 1].uplev;
     z = phot_top[*nres - NLINES - 1].z;
@@ -349,6 +351,8 @@ matom (p, nres, escape)
     nbfu = xconfig[uplvl].n_bfu_jump;   // number of bf upward jumps from this transiion
     nauger = xconfig[uplvl].nauger;     // number of auger jumps
     iauger = xconfig[uplvl].iauger;
+    index_two_photon = two_photon_process_for_upper (uplvl);
+    ntwo_photon = (index_two_photon >= 0 ? 1 : 0);
 
     if (prbs_known[uplvl] == FALSE)
     {
@@ -357,14 +361,10 @@ matom (p, nres, escape)
       pjnorm = 0.0;             //stores the total jump probability
       penorm = 0.0;             //stores the total emission probability
 
-      for (n = 0; n < nbbd + nbfd; n++)
+      for (n = 0; n < nbbd + nbfd + nauger + ntwo_photon + nbbu + nbfu; n++)
       {
         eprbs_known[uplvl][n] = eprbs[n] = 0;   //zero the individual emission probabilities
         jprbs_known[uplvl][n] = jprbs[n] = 0;   //zero  the individual jump probabilities
-      }
-      for (n = nbbd + nbfd; n < nbbd + nbfd + nbbu + nbfu; n++)
-      {
-        jprbs_known[uplvl][n] = jprbs[n] = 0;   /*slots for upward jumps */
       }
 
 
@@ -428,6 +428,17 @@ matom (p, nres, escape)
           penorm += eprbs[m];
           m++;
         }
+      }
+
+      if (index_two_photon >= 0)
+      {
+        target_level = two_photon[index_two_photon].nconfigl;
+        rad_rate = two_photon_rate (index_two_photon);
+        jprbs_known[uplvl][m] = jprbs[m] = rad_rate * xconfig[target_level].ex;
+        eprbs_known[uplvl][m] = eprbs[m] = rad_rate * (xconfig[uplvl].ex - xconfig[target_level].ex);
+        pjnorm += jprbs[m];
+        penorm += eprbs[m];
+        m++;
       }
 
       /* Now upwards jumps. */
@@ -546,18 +557,21 @@ matom (p, nres, escape)
     {                           /* bf downwards jump */
       uplvl = phot_top[xconfig[uplvl].bfd_jump[n - nbbd]].nlev;
     }
-    else if (n < (nbbd + nbfd + nbbu))
-    {                           /* bb upwards jump */
-      uplvl = line[xconfig[uplvl].bbu_jump[n - nbbd - nbfd]].nconfigu;
-    }
-    else if (n < (nbbd + nbfd + nbbu + nbfu))
-    {                           /* bf upwards jump */
-      uplvl = phot_top[xconfig[uplvl].bfu_jump[n - nbbd - nbfd - nbbu]].uplev;
-    }
-    else if (n < (nbbd + nbfd + nbbu + nbfu + nauger))
+    else if (n < (nbbd + nbfd + nauger))
     {                           /* auger ionization jump */
-      uplvl = auger_macro[iauger].nconfig_target[n - nbbd - nbfd - nbbu - nbfu];
-//OLD      icheck = 4;
+      uplvl = auger_macro[iauger].nconfig_target[n - nbbd - nbfd];
+    }
+    else if (n < (nbbd + nbfd + nauger + ntwo_photon))
+    {                           /* two-photon internal jump; zero for H I ground lower state */
+      uplvl = two_photon[index_two_photon].nconfigl;
+    }
+    else if (n < (nbbd + nbfd + nauger + ntwo_photon + nbbu))
+    {                           /* bb upwards jump */
+      uplvl = line[xconfig[uplvl].bbu_jump[n - nbbd - nbfd - nauger - ntwo_photon]].nconfigu;
+    }
+    else if (n < (nbbd + nbfd + nauger + ntwo_photon + nbbu + nbfu))
+    {                           /* bf upwards jump */
+      uplvl = phot_top[xconfig[uplvl].bfu_jump[n - nbbd - nbfd - nauger - ntwo_photon - nbbu]].uplev;
     }
     else
     {
@@ -658,6 +672,14 @@ matom (p, nres, escape)
   {                             /* auger ionization */
     /* Auger processes only undergo k-packet (collisional) deactivation */
     *escape = FALSE;
+  }
+  else if (n < (nbbd + nbfd + nauger + ntwo_photon))
+  {
+    *escape = TRUE;
+    *nres = NRES_TWO_PHOTON;
+    p->freq = two_photon_sample_freq (index_two_photon, 0.0, two_photon_nu0 (index_two_photon));
+    p->emission_process = EMISSION_PROCESS_TWO_PHOTON;
+    p->emission_config = uplvl;
   }
   else
   {
@@ -1530,12 +1552,12 @@ emit_matom (w, p, nres, upper, freq_min, freq_max)
   struct lines *line_ptr;
   struct topbase_phot *cont_ptr;
   int uplvl;
-  double eprbs[NBBJUMPS + NBFJUMPS];
+  double eprbs[NBBJUMPS + NBFJUMPS + NTWO_PHOTON_MAX];
   double penorm;
   double threshold, run_tot;
   double sp_rec_rate;
   int n, m;
-  int nbbd, nbfd;
+  int nbbd, nbfd, index_two_photon, ntwo_photon;
 //OLD  double t_e, ne;
   double ne;
   double bb_cont;
@@ -1560,13 +1582,15 @@ emit_matom (w, p, nres, upper, freq_min, freq_max)
 
   nbbd = xconfig[uplvl].n_bbd_jump;     //number of bb downward jumps
   nbfd = xconfig[uplvl].n_bfd_jump;     //number of bf downared jumps
+  index_two_photon = two_photon_process_for_upper (uplvl);
+  ntwo_photon = (index_two_photon >= 0 ? 1 : 0);
 
 
   // Set the emission probabilities and normalization factor to 0
 
   m = 0;
   penorm = 0.0;
-  for (n = 0; n < nbbd + nbfd; n++)
+  for (n = 0; n < nbbd + nbfd + ntwo_photon; n++)
   {
     eprbs[n] = 0;
   }
@@ -1612,6 +1636,19 @@ emit_matom (w, p, nres, upper, freq_min, freq_max)
     m++;
   }
 
+  if (index_two_photon >= 0)
+  {
+    eprbs[m] = two_photon_energy_weight (uplvl) * two_photon_band_fraction (index_two_photon, freq_min, freq_max);
+    penorm += eprbs[m];
+    m++;
+  }
+
+  if (penorm <= 0.0)
+  {
+    Error ("emit_matom: upper level %d has no emissivity in band %.6e--%.6e Hz\n", uplvl, freq_min, freq_max);
+    return (-1);
+  }
+
   /* Probabilities of emission (e) are now known. The normalisation factor pnorm has
      also been recorded. the integer m now gives the total number of possibilities too.
      now select what happens next. Start by choosing the random threshold value at which the
@@ -1647,6 +1684,14 @@ emit_matom (w, p, nres, upper, freq_min, freq_max)
       *nres = xconfig[uplvl].bfd_jump[n - nbbd] + NLINES + 1;
       xfreq = matom_select_bf_freq (one, xconfig[uplvl].bfd_jump[n - nbbd]);
       p->freq = xfreq;
+    }
+
+    else if (n < (nbbd + nbfd + ntwo_photon))
+    {
+      *nres = NRES_TWO_PHOTON;
+      p->freq = xfreq = two_photon_sample_freq (index_two_photon, freq_min, freq_max);
+      p->emission_process = EMISSION_PROCESS_TWO_PHOTON;
+      p->emission_config = uplvl;
     }
 
     else

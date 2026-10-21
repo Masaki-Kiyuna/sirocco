@@ -1,13 +1,9 @@
 #  Type     z ion             lambda                    f     gl  gu                   el                 eu      ll   lu
 #
-# PRIVATE/INCOMPLETE TWO-PHOTON SURROGATE:
-# The special n=1--2 entry with f=1.82042e-9 is recognized by private code and
-# assigned A_eff=8.226/4 s^-1 for collapsed n=2.  It emits one line packet at
-# the Ly-alpha frequency with escape_factor=1.  It does NOT emit the physical
-# two-photon continuum, so its spectrum, reabsorption, and contribution to the
-# apparent Ly-alpha luminosity are not reliable.  Use
-# @Hydrogen.two_photon_emission off for production runs until a continuum
-# implementation is available and validated.
+# PRIVATE TRUE TWO-PHOTON CONTINUUM VARIANT:
+# The physical spontaneous rate and collapsed-level fraction are kept separate.
+# This record is not a line and creates no oscillator strength or Sobolev opacity.
+TwoPhotonMacro  1  1  1  2  8.226  0.25  H1_CLOUDY_C17
 #
 # f values from Menzel + Pekeris 1935 MNRAS 96 77
 # supplemented with Gaunt factors from Baker + Menzel 1938 ApJ 88 52
@@ -15,11 +11,6 @@
 # z = element, ion= ionstage, f = osc. str., gl(gu) = stat. we. lower(upper) level
 # el(eu) = energy lower(upper) level (eV), ll(lu) = lvl index lower(upper) level
 #  Type     z ion             lambda                    f     gl  gu                   el                 eu      ll   lu
-# Private diagnostic variant: add an effective collapsed-n H I 2s->1s
-# two-photon sink.  For a statistically mixed n=2 level, only the 2s
-# fraction contributes: g(2s)/g(n=2)=2/8, so A_eff=8.226/4=2.0565 s^-1.
-# The small f is only a marker; SIROCCO source special-cases this line.
-LinMacro    1   1          1215.33907       0.000000001820     2     8             0.00000            10.19883     1     2
 LinMacro    1   1          1215.33907             0.41620     2     8             0.00000            10.19883     1     2
 LinMacro    1   1          1025.44253             0.07910     2    18             0.00000            12.08750     1     3
 LinMacro    1   1           972.27104             0.02899     2    32             0.00000            12.74854     1     4

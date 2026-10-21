@@ -34,6 +34,7 @@ extern int nlte_levels;                /**<  Actual number of levels to treat ex
 /* AUGER NOTE: recommended to increase NLEVELS_MACRO to at least 500 for Auger macro-atoms */
 #define NLEVELS_MACRO   600     /**<  Maximum number of macro atom levels. (SS, June 04) */
 extern int nlevels_macro;              /**<  Actual number of macro atom levels. (SS, June 04) */
+#define NTWO_PHOTON_MAX 8
 #define NLINES 		200000  /**<  Maximum number of lines to be read */
 extern int nlines;                     /**<  Actual number of lines that were read in */
 extern int nlines_macro;               /**<  Actual number of Macro Atom lines that were read in.  New version of get_atomic
@@ -213,6 +214,22 @@ typedef struct configurations
 config_dummy, *ConfigPtr;
 
 extern ConfigPtr xconfig;
+
+typedef struct two_photon_processes
+{
+  int z, istate;
+  int levl, levu;
+  int nconfigl, nconfigu;
+  double a_spont;
+  double collapsed_frac;
+  int shape_id;
+}
+two_photon_dummy, *TwoPhotonPtr;
+
+#define TWO_PHOTON_SHAPE_H1_CLOUDY_C17 1
+extern TwoPhotonPtr two_photon;
+extern int n_two_photon;
+extern int two_photon_from_config[NLEVELS];
 
 typedef struct auger
 {

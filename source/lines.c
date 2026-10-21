@@ -570,11 +570,6 @@ line_escape_factor (line_ptr, xplasma)
      struct lines *line_ptr;
      PlasmaPtr xplasma;
 {
-  if (is_h1_2s_two_photon_line (line_ptr))
-  {
-    return (1.0);
-  }
-
   return (p_escape (line_ptr, xplasma));
 }
 

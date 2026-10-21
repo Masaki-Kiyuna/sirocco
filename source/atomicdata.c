@@ -163,6 +163,8 @@ get_atomic_data (masterfile)
   double delta_E_ovr_k;
   int ierr;
   double dlambda;
+  double tp_a, tp_fraction;
+  char tp_shape[40];
 
 
   /* Initialize the atomic data structures and various counters */
@@ -271,6 +273,8 @@ structure does not have this property! */
           choice = 'r';         /* A line for a Macro Atom */
         else if (strncmp (word, "AugMacro", 7) == 0)
           choice = 'a';         /* An Auger record for a Macro Atom */
+        else if (strncmp (word, "TwoPhotonMacro", 14) == 0)
+          choice = '2';         /* A non-line two-photon Macro Atom deactivation */
         else if (strncmp (word, "Frac", 4) == 0)
           choice = 'f';         /*ground state fractions */
         else if (strncmp (word, "InnerVYS", 8) == 0)
@@ -304,6 +308,56 @@ structure does not have this property! */
 
         switch (choice)
         {
+        case '2':
+          if (n_two_photon >= NTWO_PHOTON_MAX)
+          {
+            Error ("Get_atomic_data: too many TwoPhotonMacro records; increase NTWO_PHOTON_MAX\n");
+            exit (0);
+          }
+          nwords = sscanf (aline, "%*s %d %d %d %d %le %le %39s", &z, &istate, &levl, &levu, &tp_a, &tp_fraction, tp_shape);
+          if (nwords != 7)
+          {
+            Error ("Get_atomic_data: file %s line %d: TwoPhotonMacro record incorrectly formatted\n", file, lineno);
+            Error ("Get_atomic_data: %s\n", aline);
+            exit (0);
+          }
+          if (z != 1 || istate != 1 || levl != 1 || levu != 2 || tp_a <= 0.0 || tp_fraction < 0.0 || tp_fraction > 1.0
+              || strcmp (tp_shape, "H1_CLOUDY_C17") != 0)
+          {
+            Error ("Get_atomic_data: unsupported TwoPhotonMacro record in %s line %d\n", file, lineno);
+            exit (0);
+          }
+          nconfigl = nconfigu = -1;
+          for (n = 0; n < nlevels; n++)
+          {
+            if (xconfig[n].z == z && xconfig[n].istate == istate && xconfig[n].ilv == levl)
+              nconfigl = n;
+            if (xconfig[n].z == z && xconfig[n].istate == istate && xconfig[n].ilv == levu)
+              nconfigu = n;
+          }
+          if (nconfigl < 0 || nconfigu < 0 || xconfig[nconfigl].macro_info != TRUE || xconfig[nconfigu].macro_info != TRUE)
+          {
+            Error ("Get_atomic_data: TwoPhotonMacro could not resolve macro levels %d -> %d\n", levu, levl);
+            exit (0);
+          }
+          if (two_photon_from_config[nconfigu] >= 0)
+          {
+            Error ("Get_atomic_data: duplicate TwoPhotonMacro process for configuration %d\n", nconfigu);
+            exit (0);
+          }
+          two_photon[n_two_photon].z = z;
+          two_photon[n_two_photon].istate = istate;
+          two_photon[n_two_photon].levl = levl;
+          two_photon[n_two_photon].levu = levu;
+          two_photon[n_two_photon].nconfigl = nconfigl;
+          two_photon[n_two_photon].nconfigu = nconfigu;
+          two_photon[n_two_photon].a_spont = tp_a;
+          two_photon[n_two_photon].collapsed_frac = tp_fraction;
+          two_photon[n_two_photon].shape_id = TWO_PHOTON_SHAPE_H1_CLOUDY_C17;
+          two_photon_from_config[nconfigu] = n_two_photon;
+          n_two_photon++;
+          break;
+
 /**
  * @section Elements
  *
@@ -2765,12 +2819,26 @@ a total emission oscillator strength for the level....really ought to be radiati
 
   for (n = 0; n < nlines; n++)
   {
-    if (is_h1_2s_two_photon_line (&line[n]))
+    if (is_obsolete_h1_two_photon_pseudoline (&line[n]))
     {
-      Log
-        ("get_atomic_data: Private H I 2s->1s two-photon surrogate line found: line=%d lambda=%.6g A=%.6g s^-1 escape_factor=1 f=%.6g\n",
-         n, VLIGHT / line[n].freq / ANGSTROM, a21 (&line[n]), line[n].f);
+      Error
+        ("get_atomic_data: obsolete H I two-photon pseudo-line found at line=%d. Use a TwoPhotonMacro record and an unmodified physical line list.\n",
+         n);
+      exit (0);
     }
+  }
+
+  for (n = 0; n < n_two_photon; n++)
+  {
+    Log ("TwoPhotonMacro: Z=%d ion=%d levels=%d->%d A=%.8g collapsed_fraction=%.8g A_eff=%.8g nu0=%.8g\n",
+         two_photon[n].z, two_photon[n].istate, two_photon[n].levu, two_photon[n].levl, two_photon[n].a_spont,
+         two_photon[n].collapsed_frac, two_photon[n].a_spont * two_photon[n].collapsed_frac,
+         (xconfig[two_photon[n].nconfigu].ex - xconfig[two_photon[n].nconfigl].ex) / PLANCK);
+  }
+  if (n_two_photon > 0 && two_photon_validate_shape () != 0)
+  {
+    Error ("get_atomic_data: two-photon shape self-check failed\n");
+    exit (0);
   }
 
 /* Check that all of the macro_info variables are initialized to 1

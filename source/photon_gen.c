@@ -88,6 +88,15 @@ define_phot (p, f1, f2, nphot_tot, ioniz_or_extract, iwind, freq_sampling)
   long nphot_tot_rad, nphot_tot_k;
   nphot_k = nphot_tot_k = natural_weight = iphot_start = 0;     // Initialize to avoid compiler warnings
 
+  /* The photon array is reused between cycles.  Reset process provenance before
+     any source generator fills it so a previous two-photon lineage cannot leak. */
+  for (n = 0; n < NPHOT; n++)
+  {
+    p[n].emission_process = EMISSION_PROCESS_OTHER;
+    p[n].emission_config = -1;
+    p[n].two_photon_bf_absorptions = 0;
+  }
+
   /* if we are generating nonradiative kpackets, then we need to subtract 
      off the fraction reserved for k-packets */
   if (geo.nonthermal && (geo.rt_mode == RT_MODE_MACRO) && (ioniz_or_extract == CYCLE_IONIZ))

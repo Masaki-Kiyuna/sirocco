@@ -636,8 +636,7 @@ struct geometry
   int adiabatic_recompute_compression;  /**< Private option: recompute compressive adiabatic heating at trial temperature */
   int allow_negative_divergence; /**< Private option: permit intentionally converging imported winds without wind_div_v warnings */
   int adiabatic_suppress_negative_kpkt_warning; /**< Private option: suppress negative adiabatic kpkt warnings for intentional inflows */
-  int h1_two_photon_emission;  /**< Private option: enable the incomplete collapsed-H two-photon line surrogate.
-                                  This is not a physical two-photon continuum implementation. */
+  int h1_two_photon_emission;  /**< Private option: enable H I collapsed-n=2 two-photon continuum emission. */
   int nonthermal;               /**<  0 --> No extra heating due to shocks
                                    1 --> Extra heating due to shocks (etc)  (Added for FU Ori)
                                  */
@@ -1373,6 +1372,15 @@ typedef struct photon
                        * in the wind, then -1 implies inside the wind cone and
                        * -2 implies outside the wind */
 
+  enum emission_process_enum
+  {
+    EMISSION_PROCESS_UNSET = 0,
+    EMISSION_PROCESS_OTHER = 1,
+    EMISSION_PROCESS_TWO_PHOTON = 2
+  } emission_process;          /**< Physical process that originally created this packet's energy lineage. */
+  int emission_config;         /**< Macro configuration that created a tagged continuum packet, or -1. */
+  int two_photon_bf_absorptions;       /**< Number of bound-free absorptions after two-photon continuum creation. */
+
   enum origin_enum
   { PTYPE_STAR = 0,
     PTYPE_BL = 1,
@@ -1407,6 +1415,7 @@ p_dummy, *PhotPtr;
 #define NRES_ES (-1)
 #define NRES_FF (-2)
 #define NRES_NOT_SET (-3)
+#define NRES_TWO_PHOTON (-4)
 #define NRES_BF NLINES
 
 extern PhotPtr photmain;               /**< A pointer to all of the photons that have been created in a subcycle. Added to ease

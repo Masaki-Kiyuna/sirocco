@@ -177,6 +177,9 @@ get_matom_f (mode)
           {
             for (ss = 0; ss < n_tries_local; ss++)
             {
+              ppp.emission_process = EMISSION_PROCESS_OTHER;
+              ppp.emission_config = -1;
+              ppp.two_photon_bf_absorptions = 0;
               if (m < nlevels_macro)
               {
                 /* Dealing with excitation of a macro atom level. */
@@ -270,20 +273,27 @@ get_matom_f (mode)
               {
                 if (which_out == 1)
                 {
-                  if (nres < 0)
+                  if (nres == NRES_TWO_PHOTON && ppp.emission_config >= 0 && ppp.emission_config < nlevels_macro)
+                  {
+                    level_emit[ppp.emission_config] += 1;
+                  }
+                  else if (nres < 0)
                   {
                     Error ("Negative out from matom?? Abort.\n");
                     Exit (0);
                   }
-
-                  /* It was a macro atom de-activation. */
-                  if (nres < nlines)
+                  else if (nres_is_line (nres))
                   {             /* It was a line. */
                     level_emit[lin_ptr[nres]->nconfigu] += 1;
                   }
-                  else
+                  else if (nres_is_bf (nres))
                   {
                     level_emit[phot_top[nres - NLINES - 1].uplev] += 1;
+                  }
+                  else
+                  {
+                    Error ("Unknown macro-atom emission process nres=%d\n", nres);
+                    Exit (0);
                   }
                 }
                 else if (which_out == 2)

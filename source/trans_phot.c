@@ -450,7 +450,7 @@ trans_phot_single (WindPtr w, PhotPtr p, int iextract)
       /* If this is a BB interaction, calculate the line heating
        * and break the transport loop if it was absorbed */
 
-      if (current_nres > -1 && current_nres < nlines)
+      if (nres_is_line (current_nres))
       {
         pp.nrscat++;
 

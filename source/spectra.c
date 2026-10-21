@@ -404,6 +404,8 @@ spectrum_create (p, nangle, select_extract)
   int k_orig, k1_orig;
   int iwind;
   int max_scat, max_res;
+  long long tp_local[4] = { 0 }, tp_global[4] = { 0 };
+  double tp_escape_lum_local = 0.0, tp_escape_lum_global = 0.0;
 
   if (geo.ioniz_or_extract == CYCLE_IONIZ)
   {
@@ -506,6 +508,19 @@ spectrum_create (p, nangle, select_extract)
     /* Having worked out what spectral bins to increment, we now actually increment the various spectra */
 
     istat = p[nphot].istat;
+
+    if (p[nphot].emission_process == EMISSION_PROCESS_TWO_PHOTON)
+    {
+      tp_local[0]++;
+      tp_local[3] += p[nphot].two_photon_bf_absorptions;
+      if (p[nphot].two_photon_bf_absorptions > 0)
+        tp_local[1]++;
+      if (istat == P_ESCAPE)
+      {
+        tp_local[2]++;
+        tp_escape_lum_local += p[nphot].w;
+      }
+    }
 
     if (p[nphot].origin == PTYPE_WIND || p[nphot].origin == PTYPE_WIND_MATOM)
     {
@@ -706,6 +721,22 @@ spectrum_create (p, nangle, select_extract)
     for (j = 0; j < NSTAT; j++)
       Log (" %-9.3g", (double) xxspec[n].nphot[j]);
     Log ("\n");
+  }
+
+#ifdef MPI_ON
+  MPI_Reduce (tp_local, tp_global, 4, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (&tp_escape_lum_local, &tp_escape_lum_global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+#else
+  for (j = 0; j < 4; j++)
+    tp_global[j] = tp_local[j];
+  tp_escape_lum_global = tp_escape_lum_local;
+#endif
+  if (rank_global == 0 && tp_global[0] > 0)
+  {
+    Log ("TwoPhotonSpectrumLedger phase=%s cycle=%d lineages=%lld reabsorbed_lineages=%lld bf_absorptions=%lld escaped=%lld escaped_lum=%.8e\n",
+         geo.ioniz_or_extract == CYCLE_EXTRACT ? "spectrum" : "ionization",
+         geo.ioniz_or_extract == CYCLE_EXTRACT ? geo.pcycle : geo.wcycle,
+         tp_global[0], tp_global[1], tp_global[3], tp_global[2], tp_escape_lum_global / np_mpi_global);
   }
 
 

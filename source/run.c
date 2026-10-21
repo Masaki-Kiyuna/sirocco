@@ -789,6 +789,11 @@ stats_phot_post (p, nphot)
   double zz, z_abs_all, z_abs_all_orig, z_orig[N_ISTAT], z_abs[N_ISTAT], z_else, z_else_orig;
   double radiated[20], radiated_orig[20];
   int nphot_istat[N_ISTAT];
+  long long tp_count_local[N_ISTAT] = { 0 }, tp_count_global[N_ISTAT] = { 0 };
+  double tp_energy_local[N_ISTAT] = { 0 }, tp_energy_global[N_ISTAT] = { 0 };
+  long long tp_lineages_local = 0, tp_lineages_global = 0;
+  long long tp_reabsorbed_local = 0, tp_reabsorbed_global = 0;
+  long long tp_bf_abs_local = 0, tp_bf_abs_global = 0;
 
   zz = 0.0;
   for (nn = 0; nn < nphot; nn++)
@@ -838,6 +843,44 @@ stats_phot_post (p, nphot)
       z_else += p[nn].w;
       z_else_orig += p[nn].w_orig;
     }
+
+    if (p[nn].emission_process == EMISSION_PROCESS_TWO_PHOTON)
+    {
+      tp_lineages_local++;
+      tp_bf_abs_local += p[nn].two_photon_bf_absorptions;
+      if (p[nn].two_photon_bf_absorptions > 0)
+        tp_reabsorbed_local++;
+      if (p[nn].istat >= 0 && p[nn].istat < N_ISTAT)
+      {
+        tp_count_local[p[nn].istat]++;
+        tp_energy_local[p[nn].istat] += p[nn].w;
+      }
+    }
+  }
+
+#ifdef MPI_ON
+  MPI_Reduce (tp_count_local, tp_count_global, N_ISTAT, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (tp_energy_local, tp_energy_global, N_ISTAT, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (&tp_lineages_local, &tp_lineages_global, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (&tp_reabsorbed_local, &tp_reabsorbed_global, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (&tp_bf_abs_local, &tp_bf_abs_global, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+#else
+  for (nn = 0; nn < N_ISTAT; nn++)
+  {
+    tp_count_global[nn] = tp_count_local[nn];
+    tp_energy_global[nn] = tp_energy_local[nn];
+  }
+  tp_lineages_global = tp_lineages_local;
+  tp_reabsorbed_global = tp_reabsorbed_local;
+  tp_bf_abs_global = tp_bf_abs_local;
+#endif
+
+  if (rank_global == 0 && tp_lineages_global > 0)
+  {
+    Log ("TwoPhotonLedger cycle=%d lineages=%lld reabsorbed_lineages=%lld bf_absorptions=%lld escaped=%lld escaped_lum=%.8e absorbed=%lld hit_star=%lld errors=%lld\n",
+         geo.wcycle, tp_lineages_global, tp_reabsorbed_global, tp_bf_abs_global,
+         tp_count_global[P_ESCAPE], tp_energy_global[P_ESCAPE] / np_mpi_global, tp_count_global[P_ABSORB], tp_count_global[P_HIT_STAR],
+         tp_count_global[P_ERROR] + tp_count_global[P_ERROR_MATOM] + tp_count_global[P_REPOSITION_ERROR]);
   }
 
   for (nn = 0; nn < N_ISTAT; nn++)
