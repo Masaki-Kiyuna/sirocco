@@ -405,7 +405,12 @@ spectrum_create (p, nangle, select_extract)
   int iwind;
   int max_scat, max_res;
   long long tp_local[4] = { 0 }, tp_global[4] = { 0 };
+  long long tp_source_hist_local[10] = { 0 }, tp_source_hist_global[10] = { 0 };
   double tp_escape_lum_local = 0.0, tp_escape_lum_global = 0.0;
+  double tp_source_y_local = 0.0, tp_source_y_global = 0.0;
+  double tp_nu0, tp_y;
+  int tp_process, tp_bin;
+  long long tp_source_n;
 
   if (geo.ioniz_or_extract == CYCLE_IONIZ)
   {
@@ -519,6 +524,27 @@ spectrum_create (p, nangle, select_extract)
       {
         tp_local[2]++;
         tp_escape_lum_local += p[nphot].w;
+      }
+      /* freq_orig is the two-photon source frequency only for packets created
+         by the spectrum-cycle wind/macro-atom generator.  During ionization
+         cycles it intentionally retains the original incident-packet
+         frequency across reprocessing and must not be histogrammed here. */
+      if (geo.ioniz_or_extract == CYCLE_EXTRACT)
+      {
+        tp_process = two_photon_process_for_upper (p[nphot].emission_config);
+        tp_nu0 = two_photon_nu0 (tp_process);
+        if (tp_nu0 > 0.0 && p[nphot].freq_orig > 0.0)
+        {
+          tp_y = p[nphot].freq_orig / tp_nu0;
+          if (tp_y >= 0.0 && tp_y <= 1.0)
+          {
+            tp_bin = (int) (10.0 * tp_y);
+            if (tp_bin == 10)
+              tp_bin = 9;
+            tp_source_hist_local[tp_bin]++;
+            tp_source_y_local += tp_y;
+          }
+        }
       }
     }
 
@@ -726,10 +752,15 @@ spectrum_create (p, nangle, select_extract)
 #ifdef MPI_ON
   MPI_Reduce (tp_local, tp_global, 4, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce (&tp_escape_lum_local, &tp_escape_lum_global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (tp_source_hist_local, tp_source_hist_global, 10, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (&tp_source_y_local, &tp_source_y_global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 #else
   for (j = 0; j < 4; j++)
     tp_global[j] = tp_local[j];
   tp_escape_lum_global = tp_escape_lum_local;
+  for (j = 0; j < 10; j++)
+    tp_source_hist_global[j] = tp_source_hist_local[j];
+  tp_source_y_global = tp_source_y_local;
 #endif
   if (rank_global == 0 && tp_global[0] > 0)
   {
@@ -737,6 +768,17 @@ spectrum_create (p, nangle, select_extract)
          geo.ioniz_or_extract == CYCLE_EXTRACT ? "spectrum" : "ionization",
          geo.ioniz_or_extract == CYCLE_EXTRACT ? geo.pcycle : geo.wcycle,
          tp_global[0], tp_global[1], tp_global[3], tp_global[2], tp_escape_lum_global / np_mpi_global);
+    tp_source_n = 0;
+    for (j = 0; j < 10; j++)
+      tp_source_n += tp_source_hist_global[j];
+    if (tp_source_n > 0)
+    {
+      Log ("TwoPhotonSourceFrequency phase=spectrum cycle=%d n_source=%lld mean_y=%.8f bins_y_0p1=", geo.pcycle, tp_source_n,
+           tp_source_y_global / tp_source_n);
+      for (j = 0; j < 10; j++)
+        Log ("%s%lld", j == 0 ? "" : ",", tp_source_hist_global[j]);
+      Log ("\n");
+    }
   }
 
 

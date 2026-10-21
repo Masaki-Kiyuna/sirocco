@@ -233,5 +233,9 @@ two_photon_validate_shape ()
   }
   Log ("TwoPhoton shape: Cloudy C17.03 natural spline norm=%.12g energy-fraction(y>1/3)=%.10f inverse-CDF max-error=%.3e\n",
        h1_shape.norm, upper_third_fraction, max_roundtrip_error);
+  Log ("TwoPhoton expected energy-CDF bins_y_0p1=");
+  for (k = 0; k < 10; k++)
+    Log ("%s%.8f", k == 0 ? "" : ",", tp_cdf ((k + 1) / 10.0) - tp_cdf (k / 10.0));
+  Log ("\n");
   return (fabs (upper_third_fraction - 0.8839678243) < 1.e-8 && max_roundtrip_error < 1.e-12 ? 0 : -1);
 }
