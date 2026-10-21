@@ -405,6 +405,7 @@ spectrum_create (p, nangle, select_extract)
   int iwind;
   int max_scat, max_res;
   long long tp_local[4] = { 0 }, tp_global[4] = { 0 };
+  long long tp_fate_local[N_ISTAT] = { 0 }, tp_fate_global[N_ISTAT] = { 0 };
   long long tp_source_hist_local[10] = { 0 }, tp_source_hist_global[10] = { 0 };
   double tp_escape_lum_local = 0.0, tp_escape_lum_global = 0.0;
   double tp_source_y_local = 0.0, tp_source_y_global = 0.0;
@@ -517,6 +518,8 @@ spectrum_create (p, nangle, select_extract)
     if (p[nphot].emission_process == EMISSION_PROCESS_TWO_PHOTON)
     {
       tp_local[0]++;
+      if (istat >= 0 && istat < N_ISTAT)
+        tp_fate_local[istat]++;
       tp_local[3] += p[nphot].two_photon_bf_absorptions;
       if (p[nphot].two_photon_bf_absorptions > 0)
         tp_local[1]++;
@@ -751,12 +754,15 @@ spectrum_create (p, nangle, select_extract)
 
 #ifdef MPI_ON
   MPI_Reduce (tp_local, tp_global, 4, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (tp_fate_local, tp_fate_global, N_ISTAT, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce (&tp_escape_lum_local, &tp_escape_lum_global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce (tp_source_hist_local, tp_source_hist_global, 10, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce (&tp_source_y_local, &tp_source_y_global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 #else
   for (j = 0; j < 4; j++)
     tp_global[j] = tp_local[j];
+  for (j = 0; j < N_ISTAT; j++)
+    tp_fate_global[j] = tp_fate_local[j];
   tp_escape_lum_global = tp_escape_lum_local;
   for (j = 0; j < 10; j++)
     tp_source_hist_global[j] = tp_source_hist_local[j];
@@ -764,10 +770,14 @@ spectrum_create (p, nangle, select_extract)
 #endif
   if (rank_global == 0 && tp_global[0] > 0)
   {
-    Log ("TwoPhotonSpectrumLedger phase=%s cycle=%d lineages=%lld reabsorbed_lineages=%lld bf_absorptions=%lld escaped=%lld escaped_lum=%.8e\n",
+    long long tp_errors, tp_other;
+    tp_errors = tp_fate_global[P_ERROR] + tp_fate_global[P_ERROR_MATOM] + tp_fate_global[P_REPOSITION_ERROR];
+    tp_other = tp_global[0] - tp_fate_global[P_ESCAPE] - tp_fate_global[P_ABSORB] - tp_fate_global[P_HIT_STAR] - tp_errors;
+    Log ("TwoPhotonSpectrumLedger phase=%s cycle=%d lineages=%lld reabsorbed_lineages=%lld bf_absorptions=%lld escaped=%lld escaped_lum=%.8e absorbed=%lld hit_star=%lld errors=%lld other=%lld\n",
          geo.ioniz_or_extract == CYCLE_EXTRACT ? "spectrum" : "ionization",
          geo.ioniz_or_extract == CYCLE_EXTRACT ? geo.pcycle : geo.wcycle,
-         tp_global[0], tp_global[1], tp_global[3], tp_global[2], tp_escape_lum_global / np_mpi_global);
+         tp_global[0], tp_global[1], tp_global[3], tp_global[2], tp_escape_lum_global / np_mpi_global,
+         tp_fate_global[P_ABSORB], tp_fate_global[P_HIT_STAR], tp_errors, tp_other);
     tp_source_n = 0;
     for (j = 0; j < 10; j++)
       tp_source_n += tp_source_hist_global[j];
