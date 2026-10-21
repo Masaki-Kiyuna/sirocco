@@ -444,6 +444,7 @@ create_h_level_table (ndom, rootname)
   int i, ilev, n, nstart, ndim2, nwind, nplasma;
   double converge, h1_density, hp_density, frac[6], den[6];
   double qsp_proton, qsp_electron, csp, cps, mix_over_a2ph, two_photon_branch;
+  double volume, l2ph_intrinsic;
   FILE *fptr;
 
   strcpy (filename, rootname);
@@ -477,10 +478,10 @@ create_h_level_table (ndom, rootname)
   fprintf (fptr,
            "# mix_over_A2ph=(Csp+Cps)/8.226 tests whether mixing is faster than two-photon decay only; it is necessary but not sufficient for n(2s)/n(2)=1/4 because differential feeding, photoionization, and effective Ly-alpha loss are omitted. branch_2ph=8.226/(8.226+Csp) omits those same competing processes.\n");
   fprintf (fptr,
-           "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
+           "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s %9s\n",
            "r", "rcen", "i", "nwind", "nplasma", "inwind", "converge", "n1_frac", "n2_frac", "n3_frac", "n4_frac", "n5_frac",
            "n1_density", "n2_density", "n3_density", "n4_density", "n5_density", "t_e", "ne", "Csp_ref", "Cps_ref",
-           "mix_A2ph", "branch_2ph");
+           "mix_A2ph", "branch_2ph", "volume", "L2ph_intr");
 
   nstart = zdom[ndom].nstart;
   ndim2 = zdom[ndom].ndim2;
@@ -494,6 +495,7 @@ create_h_level_table (ndom, rootname)
     hp_density = 0.0;
     csp = cps = mix_over_a2ph = 0.0;
     two_photon_branch = 1.0;
+    volume = l2ph_intrinsic = 0.0;
     for (ilev = 1; ilev <= 5; ilev++)
     {
       frac[ilev] = 0.0;
@@ -505,6 +507,7 @@ create_h_level_table (ndom, rootname)
       converge = plasmamain[nplasma].converge_whole;
       h1_density = plasmamain[nplasma].density[0];
       hp_density = plasmamain[nplasma].density[1];
+      volume = plasmamain[nplasma].vol;
       if (plasmamain[nplasma].t_e > 0.0)
       {
         qsp_proton = 4.74e-4 * sqrt (1.0e4 / plasmamain[nplasma].t_e);
@@ -523,15 +526,17 @@ create_h_level_table (ndom, rootname)
             frac[ilev] = den[ilev] / h1_density;
         }
       }
+      if (hconf[2] >= 0 && wmain[nwind].inwind >= 0)
+        l2ph_intrinsic = den[2] * two_photon_energy_weight (hconf[2]) * volume;
     }
 
     fprintf (fptr,
-             "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
+             "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e %9.2e\n",
              wmain[nwind].r, wmain[nwind].rcen, i, wmain[nwind].nwind, nplasma, wmain[nwind].inwind, converge,
              frac[1], frac[2], frac[3], frac[4], frac[5], den[1], den[2], den[3], den[4], den[5],
              (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].t_e : 0.0,
              (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].ne : 0.0,
-             csp, cps, mix_over_a2ph, two_photon_branch);
+             csp, cps, mix_over_a2ph, two_photon_branch, volume, l2ph_intrinsic);
   }
 
   fclose (fptr);
