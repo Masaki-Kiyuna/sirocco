@@ -1360,6 +1360,19 @@ string2int (word, string_choices, string_values, string_answer)
     }
   }
 
+  /* Prefer an exact match before applying the historical minimum-match rule.
+   * This keeps choices such as "bb" usable when a longer choice such as
+   * "bb_brems" is also present. */
+
+  for (i = 0; i < nchoices; i++)
+  {
+    if (strcmp (word, xs[i]) == 0)
+    {
+      strcpy (string_answer, xs[i]);
+      return (xv[i]);
+    }
+  }
+
   /* Perform a minimum match on the answer */
 
   matched = 0;
