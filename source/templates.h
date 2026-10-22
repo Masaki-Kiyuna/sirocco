@@ -340,6 +340,7 @@ int line_heat(PlasmaPtr xplasma, PhotPtr pp, int nres);
 void calc_matom_matrix(PlasmaPtr xplasma, double **matom_matrix);
 int fill_kpkt_rates(PlasmaPtr xplasma, int *escape, PhotPtr p);
 double f_matom_emit_accelerate(PlasmaPtr xplasma, int upper, double freq_min, double freq_max);
+double f_matom_two_photon_fraction(PlasmaPtr xplasma, int upper, double freq_min, double freq_max);
 double f_kpkt_emit_accelerate(PlasmaPtr xplasma, double freq_min, double freq_max);
 int matom_deactivation_from_matrix(PlasmaPtr xplasma, int uplvl);
 int calc_all_matom_matrices(void);

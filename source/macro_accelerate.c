@@ -779,6 +779,66 @@ f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max)
   }
 }
 
+/**********************************************************/
+/**
+ * @brief Return the fraction of a band-limited level emissivity that
+ *        deactivates through the true two-photon continuum.
+ *
+ * This is a passive diagnostic companion to f_matom_emit_accelerate().
+ * It repeats the same deactivation weights but does not alter any matrix,
+ * emissivity, or packet-generation probability.
+ **********************************************************/
+double
+f_matom_two_photon_fraction (xplasma, upper, freq_min, freq_max)
+     PlasmaPtr xplasma;
+     int upper;
+     double freq_min, freq_max;
+{
+  int n, index_two_photon;
+  double penorm, band_fraction, weight;
+  struct lines *line_ptr;
+  struct topbase_phot *cont_ptr;
+
+  index_two_photon = two_photon_process_for_upper (upper);
+  if (index_two_photon < 0)
+  {
+    return 0.0;
+  }
+
+  penorm = 0.0;
+  for (n = 0; n < xconfig[upper].n_bbd_jump; n++)
+  {
+    line_ptr = &line[xconfig[upper].bbd_jump[n]];
+    weight = a21 (line_ptr) * line_escape_factor (line_ptr, xplasma)
+      * (xconfig[upper].ex - xconfig[line_ptr->nconfigl].ex);
+    if (weight > 0.0)
+    {
+      penorm += weight;
+    }
+  }
+
+  for (n = 0; n < xconfig[upper].n_bfd_jump; n++)
+  {
+    cont_ptr = &phot_top[xconfig[upper].bfd_jump[n]];
+    weight = alpha_sp (cont_ptr, xplasma, 0) * xplasma->ne
+      * (xconfig[upper].ex - xconfig[cont_ptr->nlev].ex);
+    if (weight > 0.0)
+    {
+      penorm += weight;
+    }
+  }
+
+  weight = two_photon_energy_weight (upper);
+  penorm += weight;
+  band_fraction = f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max);
+  if (penorm <= 0.0 || band_fraction <= 0.0)
+  {
+    return 0.0;
+  }
+
+  return weight * two_photon_band_fraction (index_two_photon, freq_min, freq_max) / (penorm * band_fraction);
+}
+
 /* The frequency and the value of nres have been set correctly. All done. */
 
 

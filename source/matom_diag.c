@@ -36,7 +36,9 @@ matom_emiss_report ()
 {
 
   int n, m;
-  double emiss_sum, abs_sum;
+  double emiss_sum, abs_sum, two_photon_emiss_sum, two_photon_fraction;
+
+  two_photon_emiss_sum = 0.0;
 
   /* Cycle over macro atom levels and log emissivities */
 
@@ -48,11 +50,19 @@ matom_emiss_report ()
     {
       emiss_sum += macromain[n].matom_emiss[m];
       abs_sum += macromain[n].matom_abs[m];
+      if (two_photon_process_for_upper (m) >= 0)
+      {
+        two_photon_fraction = f_matom_two_photon_fraction (&plasmamain[n], m, geo.sfmin, geo.sfmax);
+        two_photon_emiss_sum += macromain[n].matom_emiss[m] * two_photon_fraction;
+      }
     }
 
     Log ("Macro Atom level emissivities (summed): z %2d i %2d macro %2d n %2d matom_abs %8.4e matom_emiss %8.4e\n",
          xconfig[m].z, xconfig[m].istate, xconfig[m].macro_info, m, abs_sum, emiss_sum);
   }
+
+  Log ("TwoPhotonMatomEmissivity band_min=%.8e band_max=%.8e luminosity=%.8e\n",
+       geo.sfmin, geo.sfmax, two_photon_emiss_sum);
 
 
 
