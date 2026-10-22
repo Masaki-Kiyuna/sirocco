@@ -355,6 +355,8 @@ int macro_pops_check_densities_for_numerical_errors(PlasmaPtr xplasma, int index
 void macro_pops_copy_to_xplasma(PlasmaPtr xplasma, int index_element, double *populations, int conf_to_matrix[600]);
 /* matom.c */
 int matom(PhotPtr p, int *nres, int *escape);
+void matom_jump_stats_reset(void);
+void matom_jump_stats_report(void);
 double b12(struct lines *line_ptr);
 double xalpha_sp(struct topbase_phot *cont_ptr, PlasmaPtr xplasma, int ichoice);
 double alpha_sp(struct topbase_phot *cont_ptr, PlasmaPtr xplasma, int ichoice);

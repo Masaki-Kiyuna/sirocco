@@ -24,6 +24,78 @@ int matom_cell = -1;
 int matom_z = -1;
 int matom_cycle = -1;
 
+static long long matom_jump_calls = 0;
+static long long matom_jump_sum = 0;
+static long long matom_jump_bins[8] = { 0 };
+static int matom_jump_max = 0;
+
+static void
+matom_jump_stats_add (njumps)
+     int njumps;
+{
+  int ibin;
+
+  if (njumps < 1)
+    ibin = 0;
+  else if (njumps < 10)
+    ibin = 1;
+  else if (njumps < 100)
+    ibin = 2;
+  else if (njumps < 1000)
+    ibin = 3;
+  else if (njumps < 10000)
+    ibin = 4;
+  else if (njumps < 100000)
+    ibin = 5;
+  else if (njumps < MAXJUMPS)
+    ibin = 6;
+  else
+    ibin = 7;
+
+  matom_jump_calls++;
+  matom_jump_sum += njumps;
+  matom_jump_bins[ibin]++;
+  if (njumps > matom_jump_max)
+    matom_jump_max = njumps;
+}
+
+void
+matom_jump_stats_reset ()
+{
+  int n;
+  matom_jump_calls = matom_jump_sum = 0;
+  matom_jump_max = 0;
+  for (n = 0; n < 8; n++)
+    matom_jump_bins[n] = 0;
+}
+
+void
+matom_jump_stats_report ()
+{
+  long long calls = matom_jump_calls, sum = matom_jump_sum;
+  long long bins[8];
+  int maximum = matom_jump_max;
+
+#ifdef MPI_ON
+  MPI_Reduce (&matom_jump_calls, &calls, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (&matom_jump_sum, &sum, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (matom_jump_bins, bins, 8, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (&matom_jump_max, &maximum, 1, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
+#else
+  int n;
+  for (n = 0; n < 8; n++)
+    bins[n] = matom_jump_bins[n];
+#endif
+
+  if (rank_global == 0 && calls > 0)
+  {
+    Log ("MatomJumpStats phase=%s cycle=%d calls=%lld jumps=%lld mean=%.6g max=%d bins_0_1_10_100_1k_10k_100k_1m=%lld,%lld,%lld,%lld,%lld,%lld,%lld,%lld\n",
+         geo.ioniz_or_extract == CYCLE_EXTRACT ? "spectrum" : "ionization",
+         geo.ioniz_or_extract == CYCLE_EXTRACT ? geo.pcycle : geo.wcycle, calls, sum, (double) sum / calls, maximum,
+         bins[0], bins[1], bins[2], bins[3], bins[4], bins[5], bins[6], bins[7]);
+  }
+}
+
 static const double omukai_alpha_lu[6][6] = {
   {0},
   {0, 0, 24, 22, 22, 21},
@@ -586,6 +658,7 @@ matom (p, nres, escape)
 
   if (njumps == MAXJUMPS)
   {
+    matom_jump_stats_add (njumps);
     Error ("Matom: jumped %d times with no emission for photon %d from upper level %d  pjnorm %e penorm %e Abort.\n", MAXJUMPS, p->np,
            uplvl, pjnorm_known[uplvl], penorm_known[uplvl]);
     *escape = TRUE;
@@ -689,6 +762,7 @@ matom (p, nres, escape)
     return (-1);
   }
 
+  matom_jump_stats_add (njumps);
   return (njumps);
 }
 

@@ -95,6 +95,7 @@ trans_phot (WindPtr w, PhotPtr p, int iextract)
   Log ("\n");
 
   timer_t0 = init_timer_t0 ();
+  matom_jump_stats_reset ();
 
   for (nphot = 0; nphot < NPHOT; nphot++)
   {
@@ -148,6 +149,7 @@ trans_phot (WindPtr w, PhotPtr p, int iextract)
   }
 
   n_lost_to_dfudge = 0;         // reset the counter
+  matom_jump_stats_report ();
 
   return (0);
 }
@@ -383,6 +385,8 @@ trans_phot_single (WindPtr w, PhotPtr p, int iextract)
 
     if (istat == P_SCAT)
     {
+      int old_grid = pp.grid;
+      double old_x[3] = { p->x[0], p->x[1], p->x[2] };
 
       /*
        * The photon has scattered, as either a resonance or continuum scatter.
@@ -414,6 +418,13 @@ trans_phot_single (WindPtr w, PhotPtr p, int iextract)
       {
         Error ("trans_phot: Trying to scatter a photon in a cell with no wind volume and the photon has been lost\n");
         Error ("trans_phot: istat %d %d grid %3d x %8.2e %8.2e %8.2e\n", istat, pp.np, pp.grid, pp.x[0], pp.x[1], pp.x[2]);
+        Error
+          ("PhotonCellLoss phot=%d old_grid=%d new_grid=%d old_inwind=%d new_inwind=%d old_xyz=%.17e,%.17e,%.17e new_xyz=%.17e,%.17e,%.17e ds_step=%.17e smax_old=%.17e cell_dfudge=%.17e DFUDGE=%.17e nres=%d emission_process=%d two_photon_bf=%d\n",
+           pp.np, old_grid, n_grid, wmain[old_grid].inwind, wmain[n_grid].inwind,
+           old_x[0], old_x[1], old_x[2], pp.x[0], pp.x[1], pp.x[2],
+           sqrt ((pp.x[0] - old_x[0]) * (pp.x[0] - old_x[0]) + (pp.x[1] - old_x[1]) * (pp.x[1] - old_x[1]) +
+                 (pp.x[2] - old_x[2]) * (pp.x[2] - old_x[2])), smax_in_cell (p), wmain[old_grid].dfudge, DFUDGE,
+           current_nres, pp.emission_process, pp.two_photon_bf_absorptions);
         pp.istat = P_ERROR;
         stuff_phot (&pp, p);
         break;
