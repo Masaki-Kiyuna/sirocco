@@ -102,6 +102,19 @@ trans_phot (WindPtr w, PhotPtr p, int iextract)
     p[nphot].np = nphot;
     check_frame (&p[nphot], F_OBSERVER, "trans_phot: photon not in observer frame as expeced\n");
 
+    if (!isfinite (p[nphot].x[0]) || !isfinite (p[nphot].x[1]) || !isfinite (p[nphot].x[2])
+        || !isfinite (p[nphot].lmn[0]) || !isfinite (p[nphot].lmn[1]) || !isfinite (p[nphot].lmn[2])
+        || !isfinite (p[nphot].freq) || !isfinite (p[nphot].w))
+    {
+      Error
+        ("PhotonInvalidInit phot=%d origin=%d nres=%d emission_process=%d emission_config=%d grid=%d xyz=%.17e,%.17e,%.17e lmn=%.17e,%.17e,%.17e freq=%.17e w=%.17e two_photon_bf=%d\n",
+         nphot, p[nphot].origin, p[nphot].nres, p[nphot].emission_process, p[nphot].emission_config, p[nphot].grid,
+         p[nphot].x[0], p[nphot].x[1], p[nphot].x[2], p[nphot].lmn[0], p[nphot].lmn[1], p[nphot].lmn[2],
+         p[nphot].freq, p[nphot].w, p[nphot].two_photon_bf_absorptions);
+      p[nphot].istat = P_ERROR;
+      continue;
+    }
+
     if (nphot % nreport == 0)
     {
       if (geo.ioniz_or_extract == CYCLE_IONIZ)
