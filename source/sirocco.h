@@ -1379,7 +1379,14 @@ typedef struct photon
     EMISSION_PROCESS_TWO_PHOTON = 2
   } emission_process;          /**< Physical process that originally created this packet's energy lineage. */
   int emission_config;         /**< Macro configuration that created a tagged continuum packet, or -1. */
+#define TWO_PHOTON_BF_LEVEL_BINS 6
   int two_photon_bf_absorptions;       /**< Number of bound-free absorptions after two-photon continuum creation. */
+  int two_photon_first_bf_level;       /**< H level of the first bf absorption; 0 is other and -1 is none. */
+  double two_photon_first_bf_energy;   /**< Packet luminosity at the first bf absorption. */
+  int two_photon_bf_level_absorptions[TWO_PHOTON_BF_LEVEL_BINS];
+  /**< Absorption-event counts by H I principal level; index 1--5 is n=1--5 and index 0 is all other continua. */
+  double two_photon_bf_level_energy[TWO_PHOTON_BF_LEVEL_BINS];
+  /**< Sum of packet luminosity at each absorption event, with the same level indexing. */
 
   enum origin_enum
   { PTYPE_STAR = 0,

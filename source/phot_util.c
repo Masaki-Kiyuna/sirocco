@@ -23,6 +23,23 @@
 #include "sirocco.h"
 
 int init_stuff_phot = 0;
+
+int
+reset_two_photon_bf_provenance (p)
+     PhotPtr p;
+{
+  int n;
+
+  p->two_photon_bf_absorptions = 0;
+  p->two_photon_first_bf_level = -1;
+  p->two_photon_first_bf_energy = 0.0;
+  for (n = 0; n < TWO_PHOTON_BF_LEVEL_BINS; n++)
+  {
+    p->two_photon_bf_level_absorptions[n] = 0;
+    p->two_photon_bf_level_energy[n] = 0.0;
+  }
+  return (0);
+}
 size_t sizeofphot;
 
 int
@@ -82,7 +99,7 @@ init_dummy_phot (p)
   p->origin = p->origin_orig = PTYPE_DUMMY;
   p->emission_process = EMISSION_PROCESS_UNSET;
   p->emission_config = -1;
-  p->two_photon_bf_absorptions = 0;
+  reset_two_photon_bf_provenance (p);
   p->np = -1;
   p->tau = p->ds = 0;
 
@@ -138,6 +155,11 @@ stuff_phot (pin, pout)
   pout->emission_process = pin->emission_process;
   pout->emission_config = pin->emission_config;
   pout->two_photon_bf_absorptions = pin->two_photon_bf_absorptions;
+  pout->two_photon_first_bf_level = pin->two_photon_first_bf_level;
+  pout->two_photon_first_bf_energy = pin->two_photon_first_bf_energy;
+  memcpy (pout->two_photon_bf_level_absorptions, pin->two_photon_bf_level_absorptions,
+          sizeof (pout->two_photon_bf_level_absorptions));
+  memcpy (pout->two_photon_bf_level_energy, pin->two_photon_bf_level_energy, sizeof (pout->two_photon_bf_level_energy));
   pout->origin = pin->origin;
   pout->origin_orig = pin->origin_orig;
   pout->nnscat = pin->nnscat;

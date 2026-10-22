@@ -968,7 +968,29 @@ scatter (p, nres, nnscat)
     {
       if (p->emission_process == EMISSION_PROCESS_TWO_PHOTON)
       {
+        int continuum_index, level_bin, principal_n;
+
+        continuum_index = *nres - NLINES - 1;
+        level_bin = 0;
+        if (continuum_index >= 0 && continuum_index < nphot_total && phot_top[continuum_index].z == 1
+            && phot_top[continuum_index].istate == 1)
+        {
+          llvl = phot_top[continuum_index].nlev;
+          if (xconfig[llvl].q_num > 0.0)
+            principal_n = (int) floor (xconfig[llvl].q_num + 0.5);
+          else
+            principal_n = xconfig[llvl].ilv;
+          if (principal_n >= 1 && principal_n < TWO_PHOTON_BF_LEVEL_BINS)
+            level_bin = principal_n;
+        }
+        if (p->two_photon_bf_absorptions == 0)
+        {
+          p->two_photon_first_bf_level = level_bin;
+          p->two_photon_first_bf_energy = p->w;
+        }
         p->two_photon_bf_absorptions++;
+        p->two_photon_bf_level_absorptions[level_bin]++;
+        p->two_photon_bf_level_energy[level_bin] += p->w;
       }
 
       /* It was a photoionisation process.

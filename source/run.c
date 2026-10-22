@@ -785,7 +785,7 @@ stats_phot_post (p, nphot)
      PhotPtr p;
      int nphot;
 {
-  int nn;
+  int nn, nlevel;
   double zz, z_abs_all, z_abs_all_orig, z_orig[N_ISTAT], z_abs[N_ISTAT], z_else, z_else_orig;
   double radiated[20], radiated_orig[20];
   int nphot_istat[N_ISTAT];
@@ -794,6 +794,16 @@ stats_phot_post (p, nphot)
   long long tp_lineages_local = 0, tp_lineages_global = 0;
   long long tp_reabsorbed_local = 0, tp_reabsorbed_global = 0;
   long long tp_bf_abs_local = 0, tp_bf_abs_global = 0;
+  long long tp_bf_level_events_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_bf_level_events_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_bf_level_lineages_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_bf_level_lineages_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_first_bf_level_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_first_bf_level_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  double tp_bf_level_energy_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  double tp_bf_level_energy_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  double tp_first_bf_energy_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  double tp_first_bf_energy_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
 
   zz = 0.0;
   for (nn = 0; nn < nphot; nn++)
@@ -850,6 +860,18 @@ stats_phot_post (p, nphot)
       tp_bf_abs_local += p[nn].two_photon_bf_absorptions;
       if (p[nn].two_photon_bf_absorptions > 0)
         tp_reabsorbed_local++;
+      for (nlevel = 0; nlevel < TWO_PHOTON_BF_LEVEL_BINS; nlevel++)
+      {
+        tp_bf_level_events_local[nlevel] += p[nn].two_photon_bf_level_absorptions[nlevel];
+        tp_bf_level_energy_local[nlevel] += p[nn].two_photon_bf_level_energy[nlevel];
+        if (p[nn].two_photon_bf_level_absorptions[nlevel] > 0)
+          tp_bf_level_lineages_local[nlevel]++;
+      }
+      if (p[nn].two_photon_first_bf_level >= 0 && p[nn].two_photon_first_bf_level < TWO_PHOTON_BF_LEVEL_BINS)
+      {
+        tp_first_bf_level_local[p[nn].two_photon_first_bf_level]++;
+        tp_first_bf_energy_local[p[nn].two_photon_first_bf_level] += p[nn].two_photon_first_bf_energy;
+      }
       if (p[nn].istat >= 0 && p[nn].istat < N_ISTAT)
       {
         tp_count_local[p[nn].istat]++;
@@ -864,6 +886,16 @@ stats_phot_post (p, nphot)
   MPI_Reduce (&tp_lineages_local, &tp_lineages_global, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce (&tp_reabsorbed_local, &tp_reabsorbed_global, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce (&tp_bf_abs_local, &tp_bf_abs_global, 1, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (tp_bf_level_events_local, tp_bf_level_events_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+  MPI_Reduce (tp_bf_level_lineages_local, tp_bf_level_lineages_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+  MPI_Reduce (tp_bf_level_energy_local, tp_bf_level_energy_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_DOUBLE, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+  MPI_Reduce (tp_first_bf_level_local, tp_first_bf_level_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+  MPI_Reduce (tp_first_bf_energy_local, tp_first_bf_energy_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_DOUBLE, MPI_SUM, 0,
+              MPI_COMM_WORLD);
 #else
   for (nn = 0; nn < N_ISTAT; nn++)
   {
@@ -873,6 +905,14 @@ stats_phot_post (p, nphot)
   tp_lineages_global = tp_lineages_local;
   tp_reabsorbed_global = tp_reabsorbed_local;
   tp_bf_abs_global = tp_bf_abs_local;
+  for (nlevel = 0; nlevel < TWO_PHOTON_BF_LEVEL_BINS; nlevel++)
+  {
+    tp_bf_level_events_global[nlevel] = tp_bf_level_events_local[nlevel];
+    tp_bf_level_lineages_global[nlevel] = tp_bf_level_lineages_local[nlevel];
+    tp_bf_level_energy_global[nlevel] = tp_bf_level_energy_local[nlevel];
+    tp_first_bf_level_global[nlevel] = tp_first_bf_level_local[nlevel];
+    tp_first_bf_energy_global[nlevel] = tp_first_bf_energy_local[nlevel];
+  }
 #endif
 
   if (rank_global == 0 && tp_lineages_global > 0)
@@ -881,6 +921,24 @@ stats_phot_post (p, nphot)
          geo.wcycle, tp_lineages_global, tp_reabsorbed_global, tp_bf_abs_global,
          tp_count_global[P_ESCAPE], tp_energy_global[P_ESCAPE] / np_mpi_global, tp_count_global[P_ABSORB], tp_count_global[P_HIT_STAR],
          tp_count_global[P_ERROR] + tp_count_global[P_ERROR_MATOM] + tp_count_global[P_REPOSITION_ERROR]);
+    Log ("TwoPhotonBFLevels cycle=%d events_Hn1=%lld Hn2=%lld Hn3=%lld Hn4=%lld Hn5=%lld other=%lld "
+         "lineages_Hn1=%lld Hn2=%lld Hn3=%lld Hn4=%lld Hn5=%lld other=%lld "
+         "energy_Hn1=%.8e Hn2=%.8e Hn3=%.8e Hn4=%.8e Hn5=%.8e other=%.8e\n",
+         geo.wcycle,
+         tp_bf_level_events_global[1], tp_bf_level_events_global[2], tp_bf_level_events_global[3],
+         tp_bf_level_events_global[4], tp_bf_level_events_global[5], tp_bf_level_events_global[0],
+         tp_bf_level_lineages_global[1], tp_bf_level_lineages_global[2], tp_bf_level_lineages_global[3],
+         tp_bf_level_lineages_global[4], tp_bf_level_lineages_global[5], tp_bf_level_lineages_global[0],
+         tp_bf_level_energy_global[1] / np_mpi_global, tp_bf_level_energy_global[2] / np_mpi_global,
+         tp_bf_level_energy_global[3] / np_mpi_global, tp_bf_level_energy_global[4] / np_mpi_global,
+         tp_bf_level_energy_global[5] / np_mpi_global, tp_bf_level_energy_global[0] / np_mpi_global);
+    Log ("TwoPhotonFirstBF cycle=%d Hn1=%lld Hn2=%lld Hn3=%lld Hn4=%lld Hn5=%lld other=%lld "
+         "energy_Hn1=%.8e Hn2=%.8e Hn3=%.8e Hn4=%.8e Hn5=%.8e other=%.8e\n",
+         geo.wcycle, tp_first_bf_level_global[1], tp_first_bf_level_global[2], tp_first_bf_level_global[3],
+         tp_first_bf_level_global[4], tp_first_bf_level_global[5], tp_first_bf_level_global[0],
+         tp_first_bf_energy_global[1] / np_mpi_global, tp_first_bf_energy_global[2] / np_mpi_global,
+         tp_first_bf_energy_global[3] / np_mpi_global, tp_first_bf_energy_global[4] / np_mpi_global,
+         tp_first_bf_energy_global[5] / np_mpi_global, tp_first_bf_energy_global[0] / np_mpi_global);
   }
 
   for (nn = 0; nn < N_ISTAT; nn++)

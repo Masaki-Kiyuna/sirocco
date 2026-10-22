@@ -407,6 +407,16 @@ spectrum_create (p, nangle, select_extract)
   long long tp_local[4] = { 0 }, tp_global[4] = { 0 };
   long long tp_fate_local[N_ISTAT] = { 0 }, tp_fate_global[N_ISTAT] = { 0 };
   long long tp_source_hist_local[10] = { 0 }, tp_source_hist_global[10] = { 0 };
+  long long tp_bf_level_events_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_bf_level_events_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_bf_level_lineages_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_bf_level_lineages_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_first_bf_level_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  long long tp_first_bf_level_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  double tp_bf_level_energy_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  double tp_bf_level_energy_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  double tp_first_bf_energy_local[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
+  double tp_first_bf_energy_global[TWO_PHOTON_BF_LEVEL_BINS] = { 0 };
   double tp_escape_lum_local = 0.0, tp_escape_lum_global = 0.0;
   double tp_source_y_local = 0.0, tp_source_y_global = 0.0;
   double tp_nu0, tp_y;
@@ -523,6 +533,18 @@ spectrum_create (p, nangle, select_extract)
       tp_local[3] += p[nphot].two_photon_bf_absorptions;
       if (p[nphot].two_photon_bf_absorptions > 0)
         tp_local[1]++;
+      for (n = 0; n < TWO_PHOTON_BF_LEVEL_BINS; n++)
+      {
+        tp_bf_level_events_local[n] += p[nphot].two_photon_bf_level_absorptions[n];
+        tp_bf_level_energy_local[n] += p[nphot].two_photon_bf_level_energy[n];
+        if (p[nphot].two_photon_bf_level_absorptions[n] > 0)
+          tp_bf_level_lineages_local[n]++;
+      }
+      if (p[nphot].two_photon_first_bf_level >= 0 && p[nphot].two_photon_first_bf_level < TWO_PHOTON_BF_LEVEL_BINS)
+      {
+        tp_first_bf_level_local[p[nphot].two_photon_first_bf_level]++;
+        tp_first_bf_energy_local[p[nphot].two_photon_first_bf_level] += p[nphot].two_photon_first_bf_energy;
+      }
       if (istat == P_ESCAPE)
       {
         tp_local[2]++;
@@ -758,6 +780,16 @@ spectrum_create (p, nangle, select_extract)
   MPI_Reduce (&tp_escape_lum_local, &tp_escape_lum_global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce (tp_source_hist_local, tp_source_hist_global, 10, MPI_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
   MPI_Reduce (&tp_source_y_local, &tp_source_y_global, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (tp_bf_level_events_local, tp_bf_level_events_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+  MPI_Reduce (tp_bf_level_lineages_local, tp_bf_level_lineages_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+  MPI_Reduce (tp_bf_level_energy_local, tp_bf_level_energy_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_DOUBLE, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+  MPI_Reduce (tp_first_bf_level_local, tp_first_bf_level_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_LONG_LONG, MPI_SUM, 0,
+              MPI_COMM_WORLD);
+  MPI_Reduce (tp_first_bf_energy_local, tp_first_bf_energy_global, TWO_PHOTON_BF_LEVEL_BINS, MPI_DOUBLE, MPI_SUM, 0,
+              MPI_COMM_WORLD);
 #else
   for (j = 0; j < 4; j++)
     tp_global[j] = tp_local[j];
@@ -767,6 +799,14 @@ spectrum_create (p, nangle, select_extract)
   for (j = 0; j < 10; j++)
     tp_source_hist_global[j] = tp_source_hist_local[j];
   tp_source_y_global = tp_source_y_local;
+  for (j = 0; j < TWO_PHOTON_BF_LEVEL_BINS; j++)
+  {
+    tp_bf_level_events_global[j] = tp_bf_level_events_local[j];
+    tp_bf_level_lineages_global[j] = tp_bf_level_lineages_local[j];
+    tp_bf_level_energy_global[j] = tp_bf_level_energy_local[j];
+    tp_first_bf_level_global[j] = tp_first_bf_level_local[j];
+    tp_first_bf_energy_global[j] = tp_first_bf_energy_local[j];
+  }
 #endif
   if (rank_global == 0 && tp_global[0] > 0)
   {
@@ -778,6 +818,27 @@ spectrum_create (p, nangle, select_extract)
          geo.ioniz_or_extract == CYCLE_EXTRACT ? geo.pcycle : geo.wcycle,
          tp_global[0], tp_global[1], tp_global[3], tp_global[2], tp_escape_lum_global / np_mpi_global,
          tp_fate_global[P_ABSORB], tp_fate_global[P_HIT_STAR], tp_errors, tp_other);
+    Log ("TwoPhotonBFLevels phase=%s cycle=%d events_Hn1=%lld Hn2=%lld Hn3=%lld Hn4=%lld Hn5=%lld other=%lld "
+         "lineages_Hn1=%lld Hn2=%lld Hn3=%lld Hn4=%lld Hn5=%lld other=%lld "
+         "energy_Hn1=%.8e Hn2=%.8e Hn3=%.8e Hn4=%.8e Hn5=%.8e other=%.8e\n",
+         geo.ioniz_or_extract == CYCLE_EXTRACT ? "spectrum" : "ionization",
+         geo.ioniz_or_extract == CYCLE_EXTRACT ? geo.pcycle : geo.wcycle,
+         tp_bf_level_events_global[1], tp_bf_level_events_global[2], tp_bf_level_events_global[3],
+         tp_bf_level_events_global[4], tp_bf_level_events_global[5], tp_bf_level_events_global[0],
+         tp_bf_level_lineages_global[1], tp_bf_level_lineages_global[2], tp_bf_level_lineages_global[3],
+         tp_bf_level_lineages_global[4], tp_bf_level_lineages_global[5], tp_bf_level_lineages_global[0],
+         tp_bf_level_energy_global[1] / np_mpi_global, tp_bf_level_energy_global[2] / np_mpi_global,
+         tp_bf_level_energy_global[3] / np_mpi_global, tp_bf_level_energy_global[4] / np_mpi_global,
+         tp_bf_level_energy_global[5] / np_mpi_global, tp_bf_level_energy_global[0] / np_mpi_global);
+    Log ("TwoPhotonFirstBF phase=%s cycle=%d Hn1=%lld Hn2=%lld Hn3=%lld Hn4=%lld Hn5=%lld other=%lld "
+         "energy_Hn1=%.8e Hn2=%.8e Hn3=%.8e Hn4=%.8e Hn5=%.8e other=%.8e\n",
+         geo.ioniz_or_extract == CYCLE_EXTRACT ? "spectrum" : "ionization",
+         geo.ioniz_or_extract == CYCLE_EXTRACT ? geo.pcycle : geo.wcycle,
+         tp_first_bf_level_global[1], tp_first_bf_level_global[2], tp_first_bf_level_global[3],
+         tp_first_bf_level_global[4], tp_first_bf_level_global[5], tp_first_bf_level_global[0],
+         tp_first_bf_energy_global[1] / np_mpi_global, tp_first_bf_energy_global[2] / np_mpi_global,
+         tp_first_bf_energy_global[3] / np_mpi_global, tp_first_bf_energy_global[4] / np_mpi_global,
+         tp_first_bf_energy_global[5] / np_mpi_global, tp_first_bf_energy_global[0] / np_mpi_global);
     tp_source_n = 0;
     for (j = 0; j < 10; j++)
       tp_source_n += tp_source_hist_global[j];

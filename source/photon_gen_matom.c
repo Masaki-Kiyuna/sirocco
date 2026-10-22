@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <string.h>
 
 #include "atomic.h"
 #include "sirocco.h"
@@ -184,7 +185,7 @@ photo_gen_kpkt (p, weight, photstart, nphot)
     pp.grid = icell;
     pp.emission_process = EMISSION_PROCESS_OTHER;
     pp.emission_config = -1;
-    pp.two_photon_bf_absorptions = 0;
+    reset_two_photon_bf_provenance (&pp);
 
     /* This following block is a bad way of doing it - kpkt could be modified to
        do what we want in a more elegant way. */
@@ -216,6 +217,11 @@ photo_gen_kpkt (p, weight, photstart, nphot)
     p[n].emission_process = pp.emission_process;
     p[n].emission_config = pp.emission_config;
     p[n].two_photon_bf_absorptions = pp.two_photon_bf_absorptions;
+    p[n].two_photon_first_bf_level = pp.two_photon_first_bf_level;
+    p[n].two_photon_first_bf_energy = pp.two_photon_first_bf_energy;
+    memcpy (p[n].two_photon_bf_level_absorptions, pp.two_photon_bf_level_absorptions,
+            sizeof (p[n].two_photon_bf_level_absorptions));
+    memcpy (p[n].two_photon_bf_level_energy, pp.two_photon_bf_level_energy, sizeof (p[n].two_photon_bf_level_energy));
     p[n].w = pp.w;
 
 
@@ -377,7 +383,7 @@ photo_gen_matom (p, weight, photstart, nphot)
     pp.grid = icell;
     pp.emission_process = EMISSION_PROCESS_OTHER;
     pp.emission_config = -1;
-    pp.two_photon_bf_absorptions = 0;
+    reset_two_photon_bf_provenance (&pp);
 
     /* This following block is a bad way of doing it but it'll do as
        a quick and dirty test for now. Really kpkt should be modified to
@@ -405,6 +411,11 @@ photo_gen_matom (p, weight, photstart, nphot)
     p[n].emission_process = pp.emission_process;
     p[n].emission_config = pp.emission_config;
     p[n].two_photon_bf_absorptions = pp.two_photon_bf_absorptions;
+    p[n].two_photon_first_bf_level = pp.two_photon_first_bf_level;
+    p[n].two_photon_first_bf_energy = pp.two_photon_first_bf_energy;
+    memcpy (p[n].two_photon_bf_level_absorptions, pp.two_photon_bf_level_absorptions,
+            sizeof (p[n].two_photon_bf_level_absorptions));
+    memcpy (p[n].two_photon_bf_level_energy, pp.two_photon_bf_level_energy, sizeof (p[n].two_photon_bf_level_energy));
     p[n].frame = F_LOCAL;
 
 

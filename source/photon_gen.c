@@ -94,7 +94,7 @@ define_phot (p, f1, f2, nphot_tot, ioniz_or_extract, iwind, freq_sampling)
   {
     p[n].emission_process = EMISSION_PROCESS_OTHER;
     p[n].emission_config = -1;
-    p[n].two_photon_bf_absorptions = 0;
+    reset_two_photon_bf_provenance (&p[n]);
   }
 
   /* if we are generating nonradiative kpackets, then we need to subtract 

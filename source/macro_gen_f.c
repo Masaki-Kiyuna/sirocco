@@ -179,7 +179,7 @@ get_matom_f (mode)
             {
               ppp.emission_process = EMISSION_PROCESS_OTHER;
               ppp.emission_config = -1;
-              ppp.two_photon_bf_absorptions = 0;
+              reset_two_photon_bf_provenance (&ppp);
               if (m < nlevels_macro)
               {
                 /* Dealing with excitation of a macro atom level. */

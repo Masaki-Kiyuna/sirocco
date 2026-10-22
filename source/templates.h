@@ -416,6 +416,7 @@ double two_photon_energy_weight(int upper);
 double two_photon_band_fraction(int iprocess, double freq_min, double freq_max);
 double two_photon_sample_freq(int iprocess, double freq_min, double freq_max);
 int two_photon_validate_shape(void);
+int reset_two_photon_bf_provenance(PhotPtr p);
 int init_dummy_phot(PhotPtr p);
 int stuff_phot(PhotPtr pin, PhotPtr pout);
 int move_phot(PhotPtr pp, double ds);
