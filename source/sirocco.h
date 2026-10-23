@@ -1205,6 +1205,8 @@ extern MatomPhotStorePtr matomphotstoremain;
 */
 typedef struct macro
 {
+#define H_BF_DIAG_LEVELS 6
+#define H_BF_DIAG_SOURCES 5
   double *jbar; /**<  This will store the Sobolev mean intensity in transitions which is needed
      for Macro Atom jumping probabilities. The indexing is by configuration (the
      NLTE_LEVELS) and then by the upward bound-bound jumps from that level
@@ -1239,6 +1241,13 @@ typedef struct macro
 
   double *matom_abs; /**< This is the energy absorbed by the macro atom levels - recorded during the ionization
      cycles and used to get matom_emiss (SS) */
+
+  /* Diagnostic-only H bound-free path estimators, split into two-photon,
+     pristine central BB/brems, reprocessed/diffuse, and other packet classes. */
+  double h_gamma_src[H_BF_DIAG_LEVELS][H_BF_DIAG_SOURCES];
+  double h_gamma_e_src[H_BF_DIAG_LEVELS][H_BF_DIAG_SOURCES];
+  double h_gamma_src_old[H_BF_DIAG_LEVELS][H_BF_DIAG_SOURCES];
+  double h_gamma_e_src_old[H_BF_DIAG_LEVELS][H_BF_DIAG_SOURCES];
 
   /* This portion of the macro structure  is not written out by windsave */
   int kpkt_rates_known;
@@ -1376,7 +1385,9 @@ typedef struct photon
   {
     EMISSION_PROCESS_UNSET = 0,
     EMISSION_PROCESS_OTHER = 1,
-    EMISSION_PROCESS_TWO_PHOTON = 2
+    EMISSION_PROCESS_TWO_PHOTON = 2,
+    EMISSION_PROCESS_CENTRAL_BB = 3,
+    EMISSION_PROCESS_CENTRAL_BREMS = 4
   } emission_process;          /**< Physical process that originally created this packet's energy lineage. */
   int emission_config;         /**< Macro configuration that created a tagged continuum packet, or -1. */
 #define TWO_PHOTON_BF_LEVEL_BINS 6

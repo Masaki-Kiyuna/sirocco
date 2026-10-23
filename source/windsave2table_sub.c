@@ -29,6 +29,8 @@ int xedge = FALSE;
 int create_h_level_table (int ndom, char rootname[]);
 int create_h_macro_bf_table (int ndom, char rootname[]);
 int create_h_tau_table (int ndom, char rootname[]);
+int create_h_model_table (int ndom, char rootname[]);
+int create_h_source_bf_table (int ndom, char rootname[]);
 
 
 /**********************************************************/
@@ -82,6 +84,8 @@ do_windsave2table (root, ion_switch, edge_switch)
     create_h_level_table (ndom, rootname);
     create_h_macro_bf_table (ndom, rootname);
     create_h_tau_table (ndom, rootname);
+    create_h_model_table (ndom, rootname);
+    create_h_source_bf_table (ndom, rootname);
     create_heat_table (ndom, rootname);
     create_convergence_table (ndom, rootname);
     create_velocity_gradient_table (ndom, rootname);
@@ -949,6 +953,197 @@ create_h_tau_table (ndom, rootname)
              sigma_bac, e_bac_ev, dr_eff);
   }
 
+  fclose (fptr);
+  return (0);
+}
+
+
+/**********************************************************/
+/**
+ * @brief Write local H diagnostics used to validate the Balmer-bubble toy model.
+ *
+ * This is diagnostic-only.  `L_*_intr` is n_u A_ul h nu V, `L_*_eff`
+ * additionally includes the local Sobolev escape factor, and `C_*_cool`
+ * is the collisional-excitation cooling used for a macro line.  The
+ * two-photon Balmer luminosity is generated energy above the n=2 edge,
+ * before subsequent transfer.
+ **********************************************************/
+int
+create_h_model_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[LINELENGTH];
+  int i, j, k, nstart, ndim2, nwind, nplasma, lower, upper, iph, bfd_index, iprocess;
+  int line_lo[3] = { 1, 1, 2 }, line_hi[3] = { 2, 3, 3 };
+  LinePtr selected[3];
+  double volume, lower_density, upper_density, tau[3], beta[3], energy;
+  double line_intr[3], line_eff[3], line_cool[3];
+  double n2_density, tp_intr, tp_balmer_frac;
+  double hp_density, ion1, rec1, heat1, cool1, gamma, gamma_e, rec_ne, rec_e_ne, threshold;
+  TopPhotPtr cont;
+  FILE *fptr;
+
+  snprintf (filename, sizeof (filename), "%s.H.model.txt", rootname);
+  if ((fptr = fopen (filename, "w")) == NULL)
+  {
+    Error ("create_h_model_table: could not open %s\n", filename);
+    return (-1);
+  }
+  selected[0] = find_h_line_by_levels (1, 2);
+  selected[1] = find_h_line_by_levels (1, 3);
+  selected[2] = find_h_line_by_levels (2, 3);
+  fprintf (fptr, "# Diagnostic-only snapshot reconstruction; no term modifies transport or thermal balance.\n");
+  fprintf (fptr, "# line_intr=n_u*A*hnu*V; line_eff=line_intr*Sobolev_beta; line_cool=n_l*C_lu*hnu*V.\n");
+  fprintf (fptr, "%9s %9s %4s %8s %9s %9s", "r", "rcen", "i", "converge", "t_e", "ne");
+  fprintf (fptr, " %11s %11s %11s %11s %11s %11s", "ion1", "rec1", "net_ion1", "heat1", "cool1", "net_heat1");
+  fprintf (fptr, " %10s %10s %11s %11s %11s", "tau_lya", "beta_lya", "L_lya_intr", "L_lya_eff", "C_lya_cool");
+  fprintf (fptr, " %10s %10s %11s %11s %11s", "tau_lyb", "beta_lyb", "L_lyb_intr", "L_lyb_eff", "C_lyb_cool");
+  fprintf (fptr, " %10s %10s %11s %11s %11s", "tau_ha", "beta_ha", "L_ha_intr", "L_ha_eff", "C_ha_cool");
+  fprintf (fptr, " %11s %11s %11s %11s\n", "n2_density", "L_2ph_intr", "f_2ph_Bac", "L_2ph_Bac");
+
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    if (nplasma < 0 || nplasma >= NPLASMA)
+      continue;
+    volume = plasmamain[nplasma].vol;
+    hp_density = plasmamain[nplasma].density[1];
+
+    for (j = 0; j < 3; j++)
+    {
+      tau[j] = beta[j] = line_intr[j] = line_eff[j] = line_cool[j] = 0.0;
+      lower = find_h_config_by_level (line_lo[j]);
+      upper = find_h_config_by_level (line_hi[j]);
+      if (selected[j] != NULL && lower >= 0 && upper >= 0)
+      {
+        lower_density = den_config (&plasmamain[nplasma], lower);
+        upper_density = den_config (&plasmamain[nplasma], upper);
+        energy = PLANCK * selected[j]->freq;
+        tau[j] = sobolev (&wmain[nwind], wmain[nwind].x, plasmamain[nplasma].density[selected[j]->nion],
+                          selected[j], wmain[nwind].dvds_ave);
+        beta[j] = p_escape_from_tau (tau[j]);
+        line_intr[j] = upper_density * a21 (selected[j]) * energy * volume;
+        line_eff[j] = line_intr[j] * beta[j];
+        line_cool[j] = lower_density * macro_bb_coll_exc_rate (selected[j], &plasmamain[nplasma]) * energy * volume;
+      }
+    }
+
+    ion1 = rec1 = heat1 = cool1 = 0.0;
+    cont = find_h_cont_by_level (1);
+    lower = find_h_config_by_level (1);
+    if (cont != NULL && lower >= 0)
+    {
+      gamma = gamma_e = rec_ne = rec_e_ne = 0.0;
+      for (j = 0; j < xconfig[lower].n_bfu_jump; j++)
+      {
+        iph = xconfig[lower].bfu_jump[j];
+        gamma += macromain[nplasma].gamma_old[xconfig[lower].bfu_indx_first + j];
+        gamma_e += macromain[nplasma].gamma_e_old[xconfig[lower].bfu_indx_first + j];
+        bfd_index = -1;
+        for (k = 0; k < xconfig[phot_top[iph].uplev].n_bfd_jump; k++)
+          if (xconfig[phot_top[iph].uplev].bfd_jump[k] == iph)
+            bfd_index = k;
+        if (bfd_index >= 0)
+        {
+          rec_ne += macromain[nplasma].recomb_sp[xconfig[phot_top[iph].uplev].bfd_indx_first + bfd_index] * plasmamain[nplasma].ne;
+          rec_e_ne += macromain[nplasma].recomb_sp_e[xconfig[phot_top[iph].uplev].bfd_indx_first + bfd_index] * plasmamain[nplasma].ne;
+        }
+      }
+      lower_density = den_config (&plasmamain[nplasma], lower);
+      threshold = PLANCK * cont->freq[0];
+      ion1 = lower_density * gamma * volume;
+      rec1 = hp_density * rec_ne * volume;
+      heat1 = lower_density * (gamma_e - gamma) * threshold * volume;
+      cool1 = hp_density * rec_e_ne * threshold * volume;
+    }
+
+    upper = find_h_config_by_level (2);
+    n2_density = upper >= 0 ? den_config (&plasmamain[nplasma], upper) : 0.0;
+    iprocess = two_photon_process_for_upper (upper);
+    tp_intr = iprocess >= 0 ? n2_density * two_photon_rate (iprocess) * PLANCK * two_photon_nu0 (iprocess) * volume : 0.0;
+    tp_balmer_frac = iprocess >= 0 ? two_photon_band_fraction (iprocess, 3.3996 * EV2ERGS / PLANCK,
+                                                               two_photon_nu0 (iprocess)) : 0.0;
+
+    fprintf (fptr, "%9.3e %9.3e %4d %8d %9.3e %9.3e", wmain[nwind].r, wmain[nwind].rcen, i,
+             plasmamain[nplasma].converge_whole, plasmamain[nplasma].t_e, plasmamain[nplasma].ne);
+    fprintf (fptr, " %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e", ion1, rec1, ion1 - rec1, heat1, cool1, heat1 - cool1);
+    for (j = 0; j < 3; j++)
+      fprintf (fptr, " %10.3e %10.3e %11.4e %11.4e %11.4e", tau[j], beta[j], line_intr[j], line_eff[j], line_cool[j]);
+    fprintf (fptr, " %11.4e %11.4e %11.4e %11.4e\n", n2_density, tp_intr, tp_balmer_frac, tp_intr * tp_balmer_frac);
+  }
+  fclose (fptr);
+  return (0);
+}
+
+
+int
+create_h_source_bf_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[LINELENGTH];
+  const char *srcname[H_BF_DIAG_SOURCES] = { "2ph", "bb", "brems", "diffuse", "other" };
+  int i, j, ilev, isource, nstart, ndim2, nwind, nplasma, conf;
+  double volume, density, threshold, gamma, gamma_e, ion, heat, sum_gamma, standard_gamma;
+  FILE *fptr;
+
+  snprintf (filename, sizeof (filename), "%s.H.source_bf.txt", rootname);
+  if ((fptr = fopen (filename, "w")) == NULL)
+    return (-1);
+  fprintf (fptr, "# Source classes: 2ph; pristine central blackbody; pristine central brems; macro-processed/wind diffuse; other.\n");
+  fprintf (fptr, "# ion is population-weighted [s^-1 cell^-1]; heat is photoelectron heating [erg s^-1 cell^-1].\n");
+  fprintf (fptr, "# gamma_srcsum is the current-cycle path estimator; gamma_solver is gamma_old used by the solver.\n");
+  fprintf (fptr, "# Their ratio need not be unity when the solver substitutes a fitted/dilute-field estimator.\n");
+  fprintf (fptr, "%9s %9s %4s %9s %9s", "r", "rcen", "i", "t_e", "ne");
+  for (ilev = 1; ilev < H_BF_DIAG_LEVELS; ilev++)
+  {
+    for (isource = 0; isource < H_BF_DIAG_SOURCES; isource++)
+      fprintf (fptr, " ion_n%d_%s heat_n%d_%s", ilev, srcname[isource], ilev, srcname[isource]);
+    fprintf (fptr, " gamma_n%d_srcsum gamma_n%d_solver src_solver_ratio_n%d", ilev, ilev, ilev);
+  }
+  fprintf (fptr, "\n");
+
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    if (nplasma < 0 || nplasma >= NPLASMA)
+      continue;
+    volume = plasmamain[nplasma].vol;
+    fprintf (fptr, "%9.3e %9.3e %4d %9.3e %9.3e", wmain[nwind].r, wmain[nwind].rcen, i,
+             plasmamain[nplasma].t_e, plasmamain[nplasma].ne);
+    for (ilev = 1; ilev < H_BF_DIAG_LEVELS; ilev++)
+    {
+      conf = find_h_config_by_level (ilev);
+      density = conf >= 0 ? den_config (&plasmamain[nplasma], conf) : 0.0;
+      threshold = standard_gamma = 0.0;
+      if (conf >= 0 && xconfig[conf].n_bfu_jump > 0)
+      {
+        threshold = PLANCK * phot_top[xconfig[conf].bfu_jump[0]].freq[0];
+        for (j = 0; j < xconfig[conf].n_bfu_jump; j++)
+          standard_gamma += macromain[nplasma].gamma_old[xconfig[conf].bfu_indx_first + j];
+      }
+      sum_gamma = 0.0;
+      for (isource = 0; isource < H_BF_DIAG_SOURCES; isource++)
+      {
+        gamma = macromain[nplasma].h_gamma_src_old[ilev][isource];
+        gamma_e = macromain[nplasma].h_gamma_e_src_old[ilev][isource];
+        ion = density * gamma * volume;
+        heat = density * (gamma_e - gamma) * threshold * volume;
+        sum_gamma += gamma;
+        fprintf (fptr, " %.6e %.6e", ion, heat);
+      }
+      fprintf (fptr, " %.6e %.6e %.6e", sum_gamma, standard_gamma,
+               standard_gamma > 0.0 ? sum_gamma / standard_gamma : 0.0);
+    }
+    fprintf (fptr, "\n");
+  }
   fclose (fptr);
   return (0);
 }

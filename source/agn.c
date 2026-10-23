@@ -498,6 +498,7 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
     if (spectype == SPECTYPE_BB)        //Blackbody spectrum, we use the supplied temperature
     {
       p[i].freq = planck (t, freqmin, freqmax);
+      p[i].emission_process = EMISSION_PROCESS_CENTRAL_BB;
     }
     else if (spectype == SPECTYPE_UNIFORM)
     {
@@ -515,6 +516,7 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
     else if (spectype == SPECTYPE_BREM) //Bremstrahlung SED - the bremstrahlung parameters (T and alpha) are hidden in the geo structure
     {
       p[i].freq = get_rand_brem (freqmin, freqmax);
+      p[i].emission_process = EMISSION_PROCESS_CENTRAL_BREMS;
     }
     else if (spectype == SPECTYPE_BB_BREM)
     {
@@ -526,11 +528,13 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
       else if (random_number (0.0, 1.0) < bb_brem_emit_bb / bb_brem_emit_tot)
       {
         p[i].freq = planck (geo.bb_brem_temp_bb, freqmin, freqmax);
+        p[i].emission_process = EMISSION_PROCESS_CENTRAL_BB;
       }
       else
       {
         geo.brem_temp = geo.bb_brem_temp_brem;
         p[i].freq = get_rand_brem (freqmin, freqmax);
+        p[i].emission_process = EMISSION_PROCESS_CENTRAL_BREMS;
       }
     }
     else if (spectype == SPECTYPE_MONO)

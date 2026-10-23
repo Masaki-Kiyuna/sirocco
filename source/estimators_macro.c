@@ -35,6 +35,20 @@ double temp_ext_rad;            //radiation temperature passed externally
 
 #define ALPHA_SP_CONSTANT 5.79618e-36   //
 
+static int
+h_bf_source_class (PhotPtr p)
+{
+  if (p->emission_process == EMISSION_PROCESS_TWO_PHOTON)
+    return 0;
+  if (p->nmacro == 0 && p->emission_process == EMISSION_PROCESS_CENTRAL_BB)
+    return 1;
+  if (p->nmacro == 0 && p->emission_process == EMISSION_PROCESS_CENTRAL_BREMS)
+    return 2;
+  if (p->nmacro > 0 || p->origin_orig == PTYPE_WIND || p->origin == PTYPE_WIND || p->origin == PTYPE_WIND_MATOM)
+    return 3;
+  return 4;
+}
+
 
 /**********************************************************/
 /**
@@ -167,6 +181,21 @@ bf_estimators_increment (one, p, ds)
         mplasma->alpha_st[xconfig[llvl].bfu_indx_first + m] += exponential / freq_av;
 
         mplasma->gamma_e[xconfig[llvl].bfu_indx_first + m] += y / ft;
+
+        /* Passive source-origin split for H I n=1--5. */
+        if (xconfig[llvl].z == 1 && xconfig[llvl].istate == 1)
+        {
+          int principal_n, source_class;
+          principal_n = (int) floor (xconfig[llvl].q_num + 0.5);
+          if (principal_n < 1 || principal_n >= H_BF_DIAG_LEVELS)
+            principal_n = xconfig[llvl].ilv;
+          if (principal_n >= 1 && principal_n < H_BF_DIAG_LEVELS)
+          {
+            source_class = h_bf_source_class (p);
+            mplasma->h_gamma_src[principal_n][source_class] += y / freq_av;
+            mplasma->h_gamma_e_src[principal_n][source_class] += y / ft;
+          }
+        }
 
         mplasma->alpha_st_e[xconfig[llvl].bfu_indx_first + m] += exponential / ft;
 
@@ -398,7 +427,7 @@ int
 normalise_macro_estimators (PlasmaPtr xplasma)
 {
   double invariant_volume_time;
-  int i, j, nlev_upper;
+  int i, j, nlev_upper, ilev, isource;
   double stimfac, line_freq, stat_weight_ratio;
   double heat_contribution, lower_density, upper_density;
   WindPtr one;
@@ -527,6 +556,19 @@ normalise_macro_estimators (PlasmaPtr xplasma)
       mplasma->jbar_old[xconfig[i].bbu_indx_first + j] =
         mplasma->jbar[xconfig[i].bbu_indx_first + j] * VLIGHT * stimfac / 4. / PI / invariant_volume_time / line_freq;
       mplasma->jbar[xconfig[i].bbu_indx_first + j] = 0.0;
+    }
+  }
+
+  for (ilev = 0; ilev < H_BF_DIAG_LEVELS; ilev++)
+  {
+    for (isource = 0; isource < H_BF_DIAG_SOURCES; isource++)
+    {
+      mplasma->h_gamma_src_old[ilev][isource] =
+        mplasma->h_gamma_src[ilev][isource] / PLANCK / invariant_volume_time;
+      mplasma->h_gamma_e_src_old[ilev][isource] =
+        mplasma->h_gamma_e_src[ilev][isource] / PLANCK / invariant_volume_time;
+      mplasma->h_gamma_src[ilev][isource] = 0.0;
+      mplasma->h_gamma_e_src[ilev][isource] = 0.0;
     }
   }
 

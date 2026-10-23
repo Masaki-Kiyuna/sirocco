@@ -390,6 +390,7 @@ reduce_macro_atom_estimators (void)
   double *level_helper2, *cell_helper2, *jbar_helper2;
   double *cooling_bf_helper, *cooling_bb_helper;
   double *cooling_bf_helper2, *cooling_bb_helper2;
+  double *h_bf_helper, *h_bf_helper2;
 
   d_xsignal (files.root, "%-20s Begin reduction of macro atom estimators\n", "NOK");
 
@@ -412,6 +413,7 @@ reduce_macro_atom_estimators (void)
   cell_helper = calloc (sizeof (double), 8 * NPLASMA);
   cooling_bf_helper = calloc (sizeof (double), NPLASMA * 2 * nphot_total);
   cooling_bb_helper = calloc (sizeof (double), NPLASMA * nlines);
+  h_bf_helper = calloc (sizeof (double), NPLASMA * 2 * H_BF_DIAG_LEVELS * H_BF_DIAG_SOURCES);
 
   jbar_helper2 = calloc (sizeof (double), NPLASMA * size_Jbar_est);
   gamma_helper2 = calloc (sizeof (double), NPLASMA * 4 * size_gamma_est);
@@ -420,6 +422,7 @@ reduce_macro_atom_estimators (void)
   cell_helper2 = calloc (sizeof (double), 8 * NPLASMA);
   cooling_bf_helper2 = calloc (sizeof (double), NPLASMA * 2 * nphot_total);
   cooling_bb_helper2 = calloc (sizeof (double), NPLASMA * nlines);
+  h_bf_helper2 = calloc (sizeof (double), NPLASMA * 2 * H_BF_DIAG_LEVELS * H_BF_DIAG_SOURCES);
 
   /* now we loop through each cell and copy the values of our variables
      into our helper arrays */
@@ -457,6 +460,13 @@ reduce_macro_atom_estimators (void)
       gamma_helper[mpi_i + ((n + 3 * size_gamma_est) * NPLASMA)] = macromain[mpi_i].gamma_e[n] / np_mpi_global;
     }
 
+    for (n = 0; n < H_BF_DIAG_LEVELS * H_BF_DIAG_SOURCES; n++)
+    {
+      h_bf_helper[mpi_i + n * NPLASMA] = ((double *) macromain[mpi_i].h_gamma_src)[n] / np_mpi_global;
+      h_bf_helper[mpi_i + (n + H_BF_DIAG_LEVELS * H_BF_DIAG_SOURCES) * NPLASMA] =
+        ((double *) macromain[mpi_i].h_gamma_e_src)[n] / np_mpi_global;
+    }
+
     for (n = 0; n < size_alpha_est; n++)
     {
       alpha_helper[mpi_i + (n * NPLASMA)] = macromain[mpi_i].recomb_sp[n] / np_mpi_global;
@@ -484,6 +494,8 @@ reduce_macro_atom_estimators (void)
   MPI_Allreduce (alpha_helper, alpha_helper2, NPLASMA * 2 * size_alpha_est, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce (cooling_bf_helper, cooling_bf_helper2, NPLASMA * 2 * nphot_total, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   MPI_Allreduce (cooling_bb_helper, cooling_bb_helper2, NPLASMA * nlines, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce (h_bf_helper, h_bf_helper2, NPLASMA * 2 * H_BF_DIAG_LEVELS * H_BF_DIAG_SOURCES, MPI_DOUBLE, MPI_SUM,
+                 MPI_COMM_WORLD);
 
   /* We now need to copy these reduced variables to the plasma structure in each thread */
 
@@ -521,6 +533,13 @@ reduce_macro_atom_estimators (void)
       macromain[mpi_i].gamma_e[n] = gamma_helper2[mpi_i + ((n + 3 * size_gamma_est) * NPLASMA)];
     }
 
+    for (n = 0; n < H_BF_DIAG_LEVELS * H_BF_DIAG_SOURCES; n++)
+    {
+      ((double *) macromain[mpi_i].h_gamma_src)[n] = h_bf_helper2[mpi_i + n * NPLASMA];
+      ((double *) macromain[mpi_i].h_gamma_e_src)[n] =
+        h_bf_helper2[mpi_i + (n + H_BF_DIAG_LEVELS * H_BF_DIAG_SOURCES) * NPLASMA];
+    }
+
     for (n = 0; n < size_alpha_est; n++)
     {
       macromain[mpi_i].recomb_sp[n] = alpha_helper2[mpi_i + (n * NPLASMA)];
@@ -546,6 +565,7 @@ reduce_macro_atom_estimators (void)
   free (alpha_helper);
   free (cooling_bf_helper);
   free (cooling_bb_helper);
+  free (h_bf_helper);
 
   free (cell_helper2);
   free (level_helper2);
@@ -554,6 +574,7 @@ reduce_macro_atom_estimators (void)
   free (alpha_helper2);
   free (cooling_bf_helper2);
   free (cooling_bb_helper2);
+  free (h_bf_helper2);
 
   d_xsignal (files.root, "%-20s Finished reduction of macro atom estimators\n", "OK");
 #endif
