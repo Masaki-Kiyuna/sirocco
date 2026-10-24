@@ -240,6 +240,12 @@ parse_command_line (argc, argv)
         Log ("Enabling convergence-based early stopping of ionization cycles\n");
         j = i;
       }
+      else if (strcmp (argv[i], "-signed_te") == 0)
+      {
+        modes.signed_unbracketed_temperature = TRUE;
+        Log ("Enabling experimental signed fallback for unbracketed temperature roots\n");
+        j = i;
+      }
       else if (strcmp (argv[i], "-i") == 0)
       {
         modes.quit_after_inputs = 1;

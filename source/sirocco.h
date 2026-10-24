@@ -1740,6 +1740,7 @@ struct advanced_modes
                                    * cycles. Set by the -early_stopping command line switch. When active,
                                    * sirocco queries the user for @estop parameters in the .pf file.
                                    */
+  int signed_unbracketed_temperature; /**< Experimental option: use the sign of H-C when a temperature root is not bracketed */
 };
 
 extern struct advanced_modes modes;

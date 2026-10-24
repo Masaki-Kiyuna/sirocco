@@ -583,6 +583,8 @@ double
 calc_te (PlasmaPtr xplasma, double tmin, double tmax)
 {
   double z1, z2;
+  double heat1, heat_photo1, heat_photo_macro1, cool1;
+  double imbalance1, imbalance2, scale1, scale2;
   int ierr = FALSE;
 
 
@@ -596,8 +598,29 @@ calc_te (PlasmaPtr xplasma, double tmin, double tmax)
 
   xplasma->t_e = tmin;
   z1 = zero_emit (tmin);
+  heat1 = xplasma->heat_tot;
+  heat_photo1 = xplasma->heat_photo;
+  heat_photo_macro1 = xplasma->heat_photo_macro;
+  cool1 = xplasma->cool_tot;
   xplasma->t_e = tmax;
   z2 = zero_emit (tmax);
+
+  scale1 = fabs (heat1 + xplasma->heat_shock) + fabs (cool1);
+  scale2 = fabs (xplasma->heat_tot + xplasma->heat_shock) + fabs (xplasma->cool_tot);
+  imbalance1 = scale1 > 0.0 ? fabs (z1) / scale1 : 0.0;
+  imbalance2 = scale2 > 0.0 ? fabs (z2) / scale2 : 0.0;
+
+  if (tmax < 1.0)
+  {
+    Log ("calc_te_low_temperature: nplasma %d tmin %.12e tmax %.12e "
+         "zmin %.12e zmax %.12e heat_min %.12e heat_max %.12e "
+         "heat_photo_min %.12e heat_photo_max %.12e "
+         "heat_photo_macro_min %.12e heat_photo_macro_max %.12e "
+         "cool_min %.12e cool_max %.12e eta_min %.12e eta_max %.12e\n",
+         xplasma->nplasma, tmin, tmax, z1, z2, heat1, xplasma->heat_tot,
+         heat_photo1, xplasma->heat_photo, heat_photo_macro1,
+         xplasma->heat_photo_macro, cool1, xplasma->cool_tot, imbalance1, imbalance2);
+  }
 
   /* The way this works is that if we have a situation where the cooling
    * at tmax and tmin brackets the heating, then we use zbrent to improve
@@ -612,6 +635,19 @@ calc_te (PlasmaPtr xplasma, double tmin, double tmax)
       Error ("calc_te: zero_find failed to find a temperature\n");
     }
 
+  }
+  else if (modes.signed_unbracketed_temperature && z1 * z2 > 0.0
+           && imbalance1 > 0.03 && imbalance2 > 0.03)
+  {
+    /* Experimental private mode.  The thermal energy equation requires T to
+       rise for net heating and fall for net cooling.  The eta guard leaves
+       nearly balanced, Monte-Carlo-noise-dominated cells on the standard path. */
+    xplasma->t_e = z1 > 0.0 ? tmax : tmin;
+    if (tmax < 1.0)
+    {
+      Log ("calc_te_signed_unbracketed: nplasma %d direction %s selected_t %.12e\n",
+           xplasma->nplasma, z1 > 0.0 ? "up" : "down", xplasma->t_e);
+    }
   }
   else if (fabs (z1) < fabs (z2))
   {

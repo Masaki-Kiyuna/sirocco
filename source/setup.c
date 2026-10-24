@@ -364,6 +364,7 @@ init_advanced_modes ()
   modes.no_macro_pops_for_ions = FALSE; /* use the ion densities from macro_pops where applicable */
   modes.early_stopping = FALSE; /* convergence-based early stopping of ionization cycles */
   modes.searchlight = FALSE;    /* diagnostic searchlight mode must be opt-in */
+  modes.signed_unbracketed_temperature = FALSE; /* standard residual-based endpoint selection */
 
   return (0);
 }
@@ -857,6 +858,19 @@ fixed concentration file. \n\
     {
       Log
         ("Warning: private option @Adiabatic.suppress_negative_kpkt_warning enabled. Negative adiabatic kpkt cooling is expected for intentional inflow; destruction probability is still set to zero.\n");
+    }
+  }
+
+  if (rdpar_keyword_exists ("@Temperature.unbracketed_mode"))
+  {
+    strcpy (answer, "residual");
+    modes.signed_unbracketed_temperature =
+      rdchoice ("@Temperature.unbracketed_mode(residual,signed)", "0,1", answer);
+    if (modes.signed_unbracketed_temperature)
+    {
+      Log
+        ("Warning: experimental private option @Temperature.unbracketed_mode=signed enabled. "
+         "For an unbracketed temperature root with significant same-sign imbalance, temperature follows the sign of H-C.\n");
     }
   }
 
