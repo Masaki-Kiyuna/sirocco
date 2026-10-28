@@ -1787,9 +1787,32 @@ matom_select_bf_freq (WindPtr one, int nconf)
 
   dfreq = (f2 - f1) / (ARRAY_PDF - 1);  //This is the frequency spacing for the equally spaced elements
 
+  if (dfreq < nextafter (f1, INFINITY) - f1)
+  {
+    static int unresolved_grid_warning = FALSE;
+    if (unresolved_grid_warning == FALSE)
+    {
+      Error ("matom_select_bf_freq: unresolved frequency grid; returning threshold frequency "
+             "nconf %d Z %d ion %d level %d nplasma %d te %.12e f1 %.12e f2 %.12e "
+             "dfreq %.12e nextafter_step %.12e\n",
+             nconf, ion[phot_top[nconf].nion].z, ion[phot_top[nconf].nion].istate,
+             phot_top[nconf].nlev, one->nplasma, te, f1, f2, dfreq,
+             nextafter (f1, INFINITY) - f1);
+      unresolved_grid_warning = TRUE;
+    }
+    return (f1);
+  }
+
   for (n = 0; n < ARRAY_PDF; n++)       //We keep going until n=ARRAY_PDF-1, which will give the maximum required frequency
   {
     freq = f1 + dfreq * n;      //The frequency of the array element we would make in the normal run of things
+    if (n > 0 && freq <= fb_x[n - 1])
+    {
+      Error ("matom_select_bf_freq: nonascending point %d nconf %d ion %d level %d nplasma %d "
+             "te %.12e f1 %.12e f2 %.12e dfreq %.12e previous %.12e current %.12e\n",
+             n, nconf, phot_top[nconf].nion, phot_top[nconf].nlev, one->nplasma,
+             te, f1, f2, dfreq, fb_x[n - 1], freq);
+    }
     fb_x[n] = freq;             //Set the next array element frequency
     fb_y[n] = fb_topbase_partial (freq);        /* should return proportional to the total emissivity from this SINGLE bf. 
                                                    Note we don't need to multiply by n_e or n_ion since we only want a CDF 
