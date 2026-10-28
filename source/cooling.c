@@ -59,6 +59,7 @@ cooling (xplasma, t)
          electron densities remain those from the current cell state. */
       xplasma->cool_adiabatic = adiabatic_cooling (&wmain[xplasma->nwind], t);
     }
+
   }
 
   else
@@ -86,6 +87,9 @@ cooling (xplasma, t)
   xplasma->cool_tot =
     xplasma->cool_adiabatic + xplasma->cool_dr + xplasma->cool_di +
     xplasma->cool_comp + xtotal_emission (&wmain[xplasma->nwind], 0., VERY_BIG);
+
+  if (modes.hminus_enabled)
+    xplasma->cool_tot += hminus_thermal_cooling (xplasma, t);
 
   return (xplasma->cool_tot);
 }
@@ -183,6 +187,13 @@ xtotal_emission (one, f1, f2)
     }
   }
 
+
+  if (modes.hminus_enabled && f2 >= f1)
+  {
+    xplasma->hminus.hff_lum = neutral_h_ff_luminosity (xplasma, f1, f2);
+    xplasma->hminus.hff_cool = xplasma->hminus.hff_lum;
+    cooling += xplasma->hminus.hff_cool;
+  }
 
   return (cooling);
 

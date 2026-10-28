@@ -1365,7 +1365,48 @@ kpkt (p, nres, escape, mode)
     p->freq = one_ff (xplasma, freqmin, freqmax);
     return (0);
   }
-  else if (destruction_choice < (mplasma->cooling_bftot + cooling_bbtot + mplasma->cooling_ff + mplasma->cooling_ff_lofreq))
+  else if (destruction_choice <
+           (mplasma->cooling_bftot + cooling_bbtot + mplasma->cooling_ff + mplasma->cooling_hminus_ra))
+  {
+    double energy_ev;
+    *escape = TRUE;
+    *nres = NRES_HMINUS_PD;
+    energy_ev = hminus_ra_sample_energy (xplasma->t_e,
+                                         PLANCK * xband.f1[0] / EV2ERGS,
+                                         PLANCK * xband.f2[xband.nbands - 1] / EV2ERGS);
+    if (!(energy_ev > 0.0) || !isfinite (energy_ev))
+    {
+      Error ("kpkt: failed to sample H- RA in cell %d\n", xplasma->nplasma);
+      p->istat = P_ERROR_MATOM;
+      return (0);
+    }
+    p->freq = energy_ev * EV2ERGS / PLANCK;
+    p->emission_process = EMISSION_PROCESS_HMINUS_RA;
+    return (0);
+  }
+  else if (destruction_choice <
+           (mplasma->cooling_bftot + cooling_bbtot + mplasma->cooling_ff
+            + mplasma->cooling_hminus_ra + mplasma->cooling_hminus_ff))
+  {
+    double energy_ev;
+    *escape = TRUE;
+    *nres = NRES_HMINUS_FF;
+    energy_ev = neutral_h_ff_sample_energy (xplasma->t_e,
+                                            PLANCK * xband.f1[0] / EV2ERGS,
+                                            PLANCK * xband.f2[xband.nbands - 1] / EV2ERGS);
+    if (!(energy_ev > 0.0) || !isfinite (energy_ev))
+    {
+      Error ("kpkt: failed to sample neutral-H ff in cell %d\n", xplasma->nplasma);
+      p->istat = P_ERROR_MATOM;
+      return (0);
+    }
+    p->freq = energy_ev * EV2ERGS / PLANCK;
+    p->emission_process = EMISSION_PROCESS_HMINUS_FF;
+    return (0);
+  }
+  else if (destruction_choice <
+           (mplasma->cooling_bftot + cooling_bbtot + mplasma->cooling_ff
+            + mplasma->cooling_hminus_ra + mplasma->cooling_hminus_ff + mplasma->cooling_ff_lofreq))
   {
 /*this is ff at a frequency that is so low frequency that it is not worth tracking further */
     *escape = TRUE;
@@ -1376,7 +1417,9 @@ kpkt (p, nres, escape, mode)
 
 
   else if (destruction_choice <
-           (mplasma->cooling_bftot + cooling_bbtot + mplasma->cooling_ff + mplasma->cooling_ff_lofreq + cooling_adiabatic))
+           (mplasma->cooling_bftot + cooling_bbtot + mplasma->cooling_ff + mplasma->cooling_hminus_ra
+            + mplasma->cooling_hminus_ff
+            + mplasma->cooling_ff_lofreq + cooling_adiabatic))
   {
 /* It is a k-packat that is destroyed by adiabatic cooling */
 
@@ -1396,7 +1439,9 @@ kpkt (p, nres, escape, mode)
   {
     /* It is a k-packed destroyed by collisional ionization in a macro atom. */
     destruction_choice =
-      destruction_choice - mplasma->cooling_bftot - cooling_bbtot - mplasma->cooling_ff - mplasma->cooling_ff_lofreq - cooling_adiabatic;
+      destruction_choice - mplasma->cooling_bftot - cooling_bbtot - mplasma->cooling_ff
+      - mplasma->cooling_hminus_ra - mplasma->cooling_ff_lofreq - cooling_adiabatic;
+    destruction_choice -= mplasma->cooling_hminus_ff;
 
     for (i = 0; i < nphot_total; i++)
     {
@@ -1426,9 +1471,9 @@ kpkt (p, nres, escape, mode)
 
   Error ("kpkt: Failed to select a destruction process in kpkt. Abort.\n");
   Error
-    ("kpkt: choice %8.4e norm %8.4e cooling_bftot %g, cooling_bbtot %g, cooling_ff %g, cooling_ff_lofreq %g, cooling_bf_coltot %g cooling_adiabatic %g cooling_adiabatic %g\n",
+    ("kpkt: choice %8.4e norm %8.4e cooling_bftot %g, cooling_bbtot %g, cooling_ff %g, cooling_hminus_ra %g, cooling_ff_lofreq %g, cooling_bf_coltot %g cooling_adiabatic %g cooling_adiabatic %g\n",
      destruction_choice, cooling_normalisation, mplasma->cooling_bftot, cooling_bbtot, mplasma->cooling_ff,
-     mplasma->cooling_ff_lofreq, cooling_bf_coltot, mplasma->cooling_adiabatic, cooling_adiabatic);
+     mplasma->cooling_hminus_ra, mplasma->cooling_ff_lofreq, cooling_bf_coltot, mplasma->cooling_adiabatic, cooling_adiabatic);
 
   *escape = TRUE;
   p->istat = P_ERROR_MATOM;

@@ -67,7 +67,8 @@ int
 nres_is_continuum_emission (nres)
      int nres;
 {
-  return (nres == NRES_FF || nres == NRES_TWO_PHOTON || nres_is_bf (nres));
+  return (nres == NRES_FF || nres == NRES_TWO_PHOTON || nres == NRES_HMINUS_PD
+          || nres == NRES_HMINUS_FF || nres_is_bf (nres));
 }
 
 /**********************************************************/

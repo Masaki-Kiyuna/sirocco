@@ -151,7 +151,7 @@ ion_abundances (PlasmaPtr xplasma, int mode)
     {
       xplasma->density[nion] = (1 - density_gain) * density_old[nion] + density_gain * xplasma->density[nion];
     }
-    xplasma->ne = get_ne (xplasma->density);
+    xplasma->ne = get_ne_plasma (xplasma);
 
     convergence (xplasma);
 

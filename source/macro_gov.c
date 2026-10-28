@@ -340,6 +340,7 @@ macro_pops (xplasma, xne)
   int i, j, index_element, index_lvl;
   int matrix_err, numerical_error, populations_ok;
   int n_macro_lvl;
+  int hminus_matrix_index;
   int n_iterations, n_inversions;
   double *a_data, *b_data;
   double *populations;
@@ -369,6 +370,7 @@ macro_pops (xplasma, xne)
 
     for (i = 0; i < NLEVELS_MACRO; i++)
     {
+      conf_to_matrix[i] = -1;
       for (j = 0; j < NLEVELS_MACRO; j++)
       {
         rate_matrix[j][i] = 0.0;
@@ -397,6 +399,14 @@ macro_pops (xplasma, xne)
            easily done by summing up the number of levels of each ion. */
 
         n_macro_lvl = macro_pops_fill_rate_matrix (mplasma, xplasma, xne, index_element, rate_matrix, radiative_flag, conf_to_matrix);
+        hminus_matrix_index = -1;
+        if (modes.hminus_enabled && ion[ele[index_element].firstion].z == 1)
+        {
+          hminus_matrix_index = n_macro_lvl;
+          n_macro_lvl = hminus_extend_rate_matrix (xplasma, xne, index_element, rate_matrix, conf_to_matrix, n_macro_lvl);
+          if (n_macro_lvl < 0)
+            return EXIT_FAILURE;
+        }
 
         /* The rate matrix is now filled up. Since the problem is not closed as it stands, the next
            thing is to replace one of the rows of the matrix (say the first row) with the constraint
@@ -465,6 +475,29 @@ macro_pops (xplasma, xne)
 
           n_inversions = macro_pops_check_for_population_inversion (index_element, populations, radiative_flag, conf_to_matrix);
 
+          /*
+           * Cleaning tiny populations and population inversions changes the
+           * normalisation imposed by row zero.  That was historically harmless
+           * for ion fractions, but H- is an explicit hydrogen-bearing state and
+           * the active network must conserve H nuclei.  Renormalise only the
+           * extended hydrogen system after all cleaning has been applied.
+           */
+          if (hminus_matrix_index >= 0)
+          {
+            double population_sum = 0.0;
+            for (i = 0; i < n_macro_lvl; i++)
+              population_sum += populations[i];
+            if (!isfinite (population_sum) || population_sum <= 0.0)
+            {
+              Error ("macro_pops: invalid H/H- population sum %.8e in plasma cell %d\n",
+                     population_sum, xplasma->nplasma);
+              free (populations);
+              return EXIT_FAILURE;
+            }
+            for (i = 0; i < n_macro_lvl; i++)
+              populations[i] /= population_sum;
+          }
+
           if (n_inversions > 0)
             Debug ("macro_pops: iteration %d: there were %d levels which were cleaned due to population inversions in plasma cell %d\n",
                    n_iterations, n_inversions, xplasma->nplasma);
@@ -490,6 +523,8 @@ macro_pops (xplasma, xne)
           {
             populations_ok = TRUE;
             macro_pops_copy_to_xplasma (xplasma, index_element, populations, conf_to_matrix);
+            if (hminus_copy_population (xplasma, index_element, populations, hminus_matrix_index) != 0)
+              return EXIT_FAILURE;
           }
 
           free (populations);

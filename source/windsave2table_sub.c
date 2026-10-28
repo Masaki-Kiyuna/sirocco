@@ -31,6 +31,8 @@ int create_h_macro_bf_table (int ndom, char rootname[]);
 int create_h_tau_table (int ndom, char rootname[]);
 int create_h_model_table (int ndom, char rootname[]);
 int create_h_source_bf_table (int ndom, char rootname[]);
+int create_hminus_table (int ndom, char rootname[]);
+int create_passive_molecule_table (int ndom, char rootname[]);
 
 
 /**********************************************************/
@@ -86,6 +88,8 @@ do_windsave2table (root, ion_switch, edge_switch)
     create_h_tau_table (ndom, rootname);
     create_h_model_table (ndom, rootname);
     create_h_source_bf_table (ndom, rootname);
+    create_hminus_table (ndom, rootname);
+    create_passive_molecule_table (ndom, rootname);
     create_heat_table (ndom, rootname);
     create_convergence_table (ndom, rootname);
     create_velocity_gradient_table (ndom, rootname);
@@ -117,6 +121,154 @@ do_windsave2table (root, ion_switch, edge_switch)
 
   }
   return (0);
+}
+
+/**********************************************************/
+/**
+ * @brief Write active H- populations, rates, estimators, and residuals.
+ *
+ * This table intentionally exposes both the rate used by the population
+ * solver and the current-cycle packet estimator.  They can differ during
+ * Monte Carlo iteration and must not be silently conflated.
+ **********************************************************/
+int
+create_hminus_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[LINELENGTH];
+  int i, nstart, ndim2, nwind, nplasma;
+  double total_h, fraction;
+  FILE *fptr;
+  HminusCell *hm;
+
+  snprintf (filename, sizeof (filename), "%s.Hminus.txt", rootname);
+  if ((fptr = fopen (filename, "w")) == NULL)
+  {
+    Error ("create_hminus_table: could not open %s\n", filename);
+    return -1;
+  }
+
+  fprintf (fptr, "# H- is an active hydrogen-network state, not a positive charge-index ion.\n");
+  fprintf (fptr, "# pd_rate is the lagged solver rate; pd_rate_est is the current-cycle path estimator.\n");
+  fprintf (fptr, "# hard_rate [s-1 per H-] and hard_power [erg s-1 cell-1] are ground-cross-section-weighted upper-bound exposure diagnostics above 10.95 eV, not implemented hard-channel rates.\n");
+  fprintf (fptr,
+           "r rcen i t_e ne nHminus Hminus_frac pd_rate pd_rate_est stim_RA stim_RA_est stim_RA_e stim_RA_e_est pd_abs_power pd_heat "
+           "ra_rate ra_cool ra_lum mn_rate mn_inverse_rate mn_heat "
+           "det_e det_H det_He inv_e inv_H inv_He coll_det_cool coll_attach_heat "
+           "pd_paths pd_events passive_AD passive_H2plus active_sink passive_sink_ratio "
+           "H_residual charge_residual thermal_residual hard_rate hard_power "
+           "hff_abs_est hff_heat hff_cool hff_lum hff_john_cells hff_cloudy_cells "
+           "picard_iterations picard_calls picard_iterations_total picard_iterations_max "
+           "cdf_endpoint negative_opacity\n");
+
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    if (nplasma < 0 || nplasma >= NPLASMA)
+      continue;
+    hm = &plasmamain[nplasma].hminus;
+    total_h = 0.0;
+    if (nions > 0)
+    {
+      int hion = 0;
+      while (hion < nions && ion[hion].z != 1)
+        hion++;
+      if (hion < nions)
+        total_h = ele[ion[hion].nelem].abun * plasmamain[nplasma].rho * rho2nh;
+    }
+    fraction = total_h > 0.0 ? hm->density / total_h : 0.0;
+    fprintf (fptr,
+             "%.8e %.8e %d %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e "
+             "%.8e %.8e %.8e %.8e %.8e %.8e "
+             "%.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e "
+             "%lu %lu %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e "
+             "%.8e %.8e %.8e %.8e %lu %lu %u %lu %lu %u %lu %lu\n",
+             wmain[nwind].r, wmain[nwind].rcen, i, plasmamain[nplasma].t_e, plasmamain[nplasma].ne,
+             hm->density, fraction, hm->pd_rate_old, hm->pd_rate_est,
+             hm->ra_stim_rate_old, hm->ra_stim_rate_est,
+             hm->ra_stim_e_rate_old, hm->ra_stim_e_rate_est, hm->pd_abs_power, hm->pd_heat,
+             hm->ra_rate, hm->ra_cool, hm->ra_lum, hm->mn_rate, hm->mn_inverse_rate, hm->mn_heat,
+             hm->det_e_rate, hm->det_h_rate, hm->det_he_rate, hm->inv_e_rate, hm->inv_h_rate, hm->inv_he_rate,
+             hm->coll_det_cool, hm->coll_attach_heat, hm->pd_packet_paths, hm->pd_events,
+             hm->passive_ad_rate, hm->passive_h2plus_rate, hm->active_sink_rate, hm->passive_sink_ratio,
+             hm->h_nuclei_residual, hm->charge_residual, hm->thermal_residual,
+             hm->unresolved_hard_rate, hm->unresolved_hard_power,
+             hm->hff_abs_est, hm->hff_heat, hm->hff_cool, hm->hff_lum,
+             hm->hff_john_cells, hm->hff_cloudy_cells,
+             hm->picard_iterations, hm->picard_calls, hm->picard_iterations_total,
+             hm->picard_iterations_max, hm->cdf_endpoint_uses, hm->negative_net_opacity_count);
+  }
+  fclose (fptr);
+  return 0;
+}
+
+int
+create_passive_molecule_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[LINELENGTH];
+  int i, level, nstart, ndim2, nwind, nplasma;
+  FILE *fptr;
+  PassiveMoleculeCell *molecule;
+
+  snprintf (filename, sizeof (filename), "%s.passive_molecules.txt", rootname);
+  if ((fptr = fopen (filename, "w")) == NULL)
+  {
+    Error ("create_passive_molecule_table: could not open %s\n", filename);
+    return -1;
+  }
+  fprintf (fptr, "# Passive H2/H2+ diagnostics never feed back on active chemistry, temperature, opacity, or transport.\n");
+  fprintf (fptr, "# Zero in an unimplemented ledger is not evidence for a physically zero process; inspect flags and implementation log.\n");
+  fprintf (fptr,
+           "# flags: 1=passive molecules exceed 1%% of H nuclei; 2=matrix residual; 4=cell solve failure; 8=shielding iteration limit; 16=scalar closure fallback; 32=active cooling unavailable; 64=continuum emission unresolved; 128=omitted X-state UV branches use retained LTE proxy.\n");
+  fprintf (fptr, "r rcen i t_e H2 H2_unshielded H2plus NH2_in fshield cool_line heat_chem cool_chem "
+           "form_rate destroy_rate matrix_residual "
+           "form_AD form_CT form_excited_RA form_threebody destroy_LW destroy_PI destroy_coll "
+           "H2p_form_Hminus H2p_form_RA H2p_form_assoc_ion H2p_form_PI "
+           "H2p_destroy_PD H2p_destroy_CT H2p_destroy_DR H2p_destroy_Hminus_reverse "
+           "tau_H2_max tau_H2plus_max L_abs L_emit L_net trace_fraction cooling_fraction flags");
+  for (level = 0; level < H2_PASSIVE_LEVELS; level++)
+    fprintf (fptr, " H2_level_%02d", level + 1);
+  fprintf (fptr, "\n");
+
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    if (nplasma < 0 || nplasma >= NPLASMA)
+      continue;
+    molecule = &plasmamain[nplasma].molecules;
+    fprintf (fptr,
+             "%.8e %.8e %d %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e",
+             wmain[nwind].r, wmain[nwind].rcen, i, plasmamain[nplasma].t_e,
+             molecule->h2_total, molecule->h2_total_unshielded, molecule->h2plus,
+             molecule->h2_column_in, molecule->shielding_factor, molecule->cooling_line,
+             molecule->heat_chemical, molecule->cool_chemical, molecule->rate_formation,
+             molecule->rate_destruction, molecule->matrix_residual);
+    fprintf (fptr,
+             " %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e",
+             molecule->form_ad, molecule->form_charge_transfer, molecule->form_excited_ra,
+             molecule->form_threebody, molecule->destroy_lw, molecule->destroy_photoionization,
+             molecule->destroy_collisional, molecule->h2plus_form_hminus, molecule->h2plus_form_ra,
+             molecule->h2plus_form_assoc_ion, molecule->h2plus_form_photoionization,
+             molecule->h2plus_destroy_pd, molecule->h2plus_destroy_ct, molecule->h2plus_destroy_dr,
+             molecule->h2plus_destroy_hminus_reverse);
+    fprintf (fptr, " %.8e %.8e %.8e %.8e %.8e %.8e %.8e %u",
+             molecule->tau_h2_max, molecule->tau_h2plus_max, molecule->lum_abs, molecule->lum_emit,
+             molecule->lum_net, molecule->trace_fraction, molecule->passive_cooling_fraction, molecule->flags);
+    for (level = 0; level < H2_PASSIVE_LEVELS; level++)
+      fprintf (fptr, " %.8e", molecule->h2_level[level]);
+    fprintf (fptr, "\n");
+  }
+  fclose (fptr);
+  return 0;
 }
 
 int

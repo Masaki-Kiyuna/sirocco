@@ -365,6 +365,10 @@ init_advanced_modes ()
   modes.early_stopping = FALSE; /* convergence-based early stopping of ionization cycles */
   modes.searchlight = FALSE;    /* diagnostic searchlight mode must be opt-in */
   modes.signed_unbracketed_temperature = FALSE; /* standard residual-based endpoint selection */
+  modes.hminus_enabled = FALSE;
+  modes.hminus_ff_mode = HMINUS_FF_JOHN88_GUARDED;
+  modes.passive_molecules_enabled = FALSE;
+  modes.passive_molecule_debug_spectra = FALSE;
 
   return (0);
 }
@@ -887,6 +891,12 @@ fixed concentration file. \n\
     {
       Log ("Hydrogen two-photon continuum is enabled.\n");
     }
+  }
+
+  if (hminus_get_runtime_options () != 0)
+  {
+    Error ("Unable to initialize H- runtime options and data\n");
+    Exit (1);
   }
 
   geo.ff_gaunt_mode = FF_GAUNT_INTEGRATED;

@@ -63,6 +63,7 @@ matrix_ion_populations (xplasma, mode)
   double newden[NIONS];         //A temporary array to hold our intermediate solutions
   double nh, nh1, nh2, t_e;
   double xne, xxne, xxxne;      //Various stores for intermediate guesses at electron density
+  int hminus_converged;
   double b_temp[nions];         //The b matrix
   double *b_data, *a_data;      //These arrays are allocated later and sent to the matrix solver
   double *populations;          //This array is allocated later and is retrieved from the matrix solver
@@ -75,6 +76,27 @@ matrix_ion_populations (xplasma, mode)
   double inner_rates[n_inner_tot];      //This array contains the rates for each of the inner shells. Where they go to requires the electron yield array
 
   nh1 = nh2 = 0;
+
+  /* H- is appended to the hydrogen macro-level rate matrix.  Do not let an
+     incompatible atomic model or ionization mode silently turn an enabled
+     chemical state into a zero-density diagnostic. */
+  if (modes.hminus_enabled)
+  {
+    int h_element = -1;
+    for (mm = 0; mm < nelements; mm++)
+      if (ele[mm].z == 1)
+      {
+        h_element = mm;
+        break;
+      }
+    if (h_element < 0 || ion[ele[h_element].firstion].macro_info != TRUE
+        || geo.macro_simple != FALSE || geo.macro_ioniz_mode != MACRO_IONIZ_MODE_ESTIMATORS)
+    {
+      Error ("matrix_ion_populations: H- requires estimator-based hydrogen macro-atom populations (cell %d)\n",
+             xplasma->nplasma);
+      return -1;
+    }
+  }
 
   /* Copy some quantities from the cell into local variables */
 
@@ -206,7 +228,7 @@ matrix_ion_populations (xplasma, mode)
      the same result as the original procedure, or for successive calculations, it should be a better guess. I've leftin the
      original code, commented out...  */
 
-  xne = xxne = xxxne = get_ne (xplasma->density);       //Even though the abundances are fractional, we need the real electron density
+  xne = xxne = xxxne = get_ne_plasma (xplasma);       //Even though the abundances are fractional, we need the real electron density
 
 
   /* xne is the current working number xxne */
@@ -344,6 +366,14 @@ matrix_ion_populations (xplasma, mode)
     {
       xnew += newden[nn] * (ion[nn].istate - 1) * elem_dens[ion[nn].z];
     }
+    if (modes.hminus_enabled)
+      xnew -= xplasma->hminus.density;
+
+    if (modes.hminus_enabled && modes.extra_diagnostics && xplasma->nplasma == 0)
+      Log ("H- Picard iterate: cell %d iteration %d ne_in %.8e ne_map %.8e nHm_old %.8e nHm_map %.8e Te %.8e\n",
+           xplasma->nplasma, niterate + 1, xne, xnew,
+           xplasma->hminus.density_old, xplasma->hminus.density,
+           xplasma->t_e);
 
 
 
@@ -351,8 +381,18 @@ matrix_ion_populations (xplasma, mode)
       xnew = DENSITY_MIN;       /* fudge to keep a floor on ne */
 
 
-    if (fabs ((xne - xnew) / (xnew)) < FRACTIONAL_ERROR || xnew < 1.e-6)        /* We have converged, or have the situation where we
-                                                                                   have a neutral plasma */
+    /* The legacy neutral-plasma shortcut is not a convergence test when a
+       negative ion is active.  A trial state can have n(H-) larger than the
+       current positive charge, which floors xnew even though the coupled
+       electron/H- Picard iteration has not converged. */
+    hminus_converged = TRUE;
+    if (modes.hminus_enabled)
+    {
+      double hminus_scale = fmax (fmax (xplasma->hminus.density, xplasma->hminus.density_old), DENSITY_MIN);
+      hminus_converged = fabs (xplasma->hminus.density - xplasma->hminus.density_old) / hminus_scale < FRACTIONAL_ERROR;
+    }
+    if ((fabs ((xne - xnew) / (xnew)) < FRACTIONAL_ERROR && hminus_converged)
+        || (!modes.hminus_enabled && xnew < 1.e-6))
     {
       break;                    /* Break out of the while loop - we have finished our iterations */
     }
@@ -394,7 +434,21 @@ matrix_ion_populations (xplasma, mode)
       Error ("matrix_ion_populations: ion %i has population %8.4e in cell %i\n", nn, xplasma->density[nn], xplasma->nplasma);
   }
 
-  xplasma->ne = get_ne (xplasma->density);
+  xplasma->ne = get_ne_plasma (xplasma);
+  if (modes.hminus_enabled)
+  {
+    xplasma->hminus.picard_iterations = (unsigned int) (niterate + 1);
+    xplasma->hminus.picard_calls++;
+    xplasma->hminus.picard_iterations_total += (unsigned long) (niterate + 1);
+    if (xplasma->hminus.picard_iterations > xplasma->hminus.picard_iterations_max)
+      xplasma->hminus.picard_iterations_max = xplasma->hminus.picard_iterations;
+    if (modes.extra_diagnostics && xplasma->nplasma < 2)
+      Log ("H- Picard profile: cell %d call %lu iterations %u ne %.8e nHm %.8e Te %.8e\n",
+           xplasma->nplasma, xplasma->hminus.picard_calls,
+           xplasma->hminus.picard_iterations, xplasma->ne,
+           xplasma->hminus.density, xplasma->t_e);
+  }
+  hminus_update_conservation (xplasma);
 
   if (n_charge_exchange > 0)
   {

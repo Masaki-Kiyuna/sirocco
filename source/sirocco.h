@@ -921,6 +921,65 @@ extern WindPtr wmain;
  * Note that a number of the arrays are dynamically allocated.
  */
 
+#define HMINUS_RA_TNODES 368
+#define HMINUS_RA_QUANTILES 8192
+#define HMINUS_RA_KNOTS 4
+#define H2_PASSIVE_LEVELS 70
+
+#define NRES_HMINUS_PD (-5)
+#define NRES_HMINUS_FF (-6)
+
+enum hminus_ff_mode_enum
+{
+  HMINUS_FF_JOHN88_GUARDED = 0,
+  HMINUS_FF_CLOUDY_C25_ALLT = 1
+};
+
+typedef struct hminus_cell
+{
+  double density, density_old;
+  double pd_rate, pd_rate_old;
+  double ra_stim_rate, ra_stim_rate_old, ra_stim_rate_est;
+  double ra_stim_e_rate, ra_stim_e_rate_old, ra_stim_e_rate_est;
+  double pd_abs_power, pd_heat;
+  double ra_rate, ra_cool, ra_lum, ra_lum_band;
+  double mn_rate, mn_inverse_rate, mn_heat;
+  double det_e_rate, det_h_rate, det_he_rate;
+  double inv_e_rate, inv_h_rate, inv_he_rate;
+  double coll_det_cool, coll_attach_heat;
+  double pd_rate_est, pd_energy_est, pd_heat_est;
+  unsigned long pd_packet_paths, pd_events;
+  double hff_heat, hff_cool, hff_lum;
+  double hff_abs_est;
+  unsigned long hff_john_cells, hff_cloudy_cells;
+  double passive_ad_rate, passive_h2plus_rate;
+  double active_sink_rate, passive_sink_ratio;
+  double h_nuclei_residual, charge_residual, thermal_residual;
+  double unresolved_hard_rate, unresolved_hard_power;
+  unsigned int picard_iterations, picard_iterations_max;
+  unsigned long picard_calls, picard_iterations_total;
+  unsigned long cdf_endpoint_uses, negative_net_opacity_count;
+} HminusCell;
+
+typedef struct passive_molecule_cell
+{
+  double h2_level[H2_PASSIVE_LEVELS];
+  double h2_level_unshielded[H2_PASSIVE_LEVELS];
+  double h2plus;
+  double h2_total, h2_total_unshielded;
+  double h2_column_in, shielding_factor;
+  double cooling_line, heat_chemical, cool_chemical;
+  double rate_formation, rate_destruction, matrix_residual;
+  double form_ad, form_charge_transfer, form_excited_ra, form_threebody;
+  double destroy_lw, destroy_photoionization, destroy_collisional;
+  double h2plus_form_hminus, h2plus_form_ra, h2plus_form_assoc_ion, h2plus_form_photoionization;
+  double h2plus_destroy_pd, h2plus_destroy_ct, h2plus_destroy_dr, h2plus_destroy_hminus_reverse;
+  double tau_h2_max, tau_h2plus_max;
+  double lum_abs, lum_emit, lum_net;
+  double trace_fraction, passive_cooling_fraction;
+  unsigned int flags;
+} PassiveMoleculeCell;
+
 typedef struct plasma
 {
   int nwind;                    /**<  A cross reference to the corresponding cell in the  wind structure */
@@ -934,6 +993,9 @@ typedef struct plasma
                                    the same as read in by the atomic data routines. */
   double *partition;            /**<  The partition function for each  ion.  */
   double *levden;               /* The number density (occupation number?) of a specific level */
+
+  HminusCell hminus;            /**< Active H- state and its estimators; not part of the ion charge-index array. */
+  PassiveMoleculeCell molecules;        /**< Passive H2/H2+ diagnostic state; excluded from conservation updates. */
 
   double kappa_ff_factor;       /**<  Multiplicative factor for calculating the FF heating for a photon. */
 
@@ -1262,6 +1324,8 @@ typedef struct macro
   double cooling_bbtot, cooling_bftot, cooling_bf_coltot;
   double cooling_bb_simple_tot;
   double cooling_ff, cooling_ff_lofreq;
+  double cooling_hminus_ra;
+  double cooling_hminus_ff;
   double cooling_adiabatic;     // this is just cool_adiabatic / vol / ne
 
 #define MATOM_MC_JUMPS 0
@@ -1387,7 +1451,9 @@ typedef struct photon
     EMISSION_PROCESS_OTHER = 1,
     EMISSION_PROCESS_TWO_PHOTON = 2,
     EMISSION_PROCESS_CENTRAL_BB = 3,
-    EMISSION_PROCESS_CENTRAL_BREMS = 4
+    EMISSION_PROCESS_CENTRAL_BREMS = 4,
+    EMISSION_PROCESS_HMINUS_RA = 5,
+    EMISSION_PROCESS_HMINUS_FF = 6
   } emission_process;          /**< Physical process that originally created this packet's energy lineage. */
   int emission_config;         /**< Macro configuration that created a tagged continuum packet, or -1. */
 #define TWO_PHOTON_BF_LEVEL_BINS 6
@@ -1741,6 +1807,10 @@ struct advanced_modes
                                    * sirocco queries the user for @estop parameters in the .pf file.
                                    */
   int signed_unbracketed_temperature; /**< Experimental option: use the sign of H-C when a temperature root is not bracketed */
+  int hminus_enabled;           /**< Enable the private active H- chemical macro-atom network. */
+  int hminus_ff_mode;           /**< Neutral-H free-free coefficient mode used with H-. */
+  int passive_molecules_enabled;        /**< Enable passive H2/H2+ diagnostics on a fixed plasma background. */
+  int passive_molecule_debug_spectra;   /**< Save optional diagnostic spectra for passive molecules. */
 };
 
 extern struct advanced_modes modes;

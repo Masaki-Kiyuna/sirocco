@@ -866,7 +866,7 @@ hydro_restart (ndom)
         plasmamain[n].density[nion] = plasmamain[n].density[nion] * (plasmamain[n].rho / old_density);
       }
 
-      plasmamain[n].ne = get_ne (plasmamain[n].density);        //get the new electron density
+      plasmamain[n].ne = get_ne_plasma (&plasmamain[n]);        //get the new electron density
       partition_functions (&plasmamain[n], NEBULARMODE_LTE_GROUND);     //set the level populations to ground state - this is because at the moment we dont know how to work out levels for cases that dont have a dilute BB radiation field. We need to set them to something however. Could do better in the future.
 
     }

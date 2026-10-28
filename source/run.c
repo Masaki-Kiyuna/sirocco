@@ -248,6 +248,7 @@ calculate_ionization (restart_stat)
 
     nphot_to_define = (long) NPHOT;
 
+    hminus_reset_cycle_diagnostics ();
     xsignal (files.root, "%-20s Creating photons before transport\n", "NOK");
     define_phot (p, freqmin, freqmax, nphot_to_define, CYCLE_IONIZ, iwind, 1);
     photon_checks (p, freqmin, freqmax, "Check before transport");
@@ -282,6 +283,7 @@ calculate_ionization (restart_stat)
        that has been accumulated on different MPI tasks */
     reduce_simple_estimators ();
     reduce_macro_atom_estimators ();
+    hminus_reduce_estimators ();
 
     /* Calculate and store the amount of heating of the disk due to radiation impinging on the disk */
     /* We only want one process to write to the file, and we only do this if there is a disk */

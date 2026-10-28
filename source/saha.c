@@ -830,3 +830,12 @@ get_ne (density)
   }
   return (ne);
 }
+
+double
+get_ne_plasma (PlasmaPtr xplasma)
+{
+  double ne = get_ne (xplasma->density);
+  if (modes.hminus_enabled)
+    ne -= xplasma->hminus.density;
+  return ne > DENSITY_MIN ? ne : DENSITY_MIN;
+}

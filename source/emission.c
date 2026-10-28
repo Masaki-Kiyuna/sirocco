@@ -80,6 +80,8 @@ wind_luminosity (double f1, double f2, int mode)
   double lum_lines;
   double lum_rad_recomb;
   double lum_free_free;
+  double lum_hminus_ra;
+  double lum_hminus_ff;
   double gamma_factor;
   int n_cells_rank;
 
@@ -109,6 +111,8 @@ wind_luminosity (double f1, double f2, int mode)
   lum_lines = 0.0;
   lum_free_free = 0.0;
   lum_rad_recomb = 0.0;
+  lum_hminus_ra = 0.0;
+  lum_hminus_ff = 0.0;
 
   for (n_plasma = 0; n_plasma < NPLASMA; n_plasma++)
   {
@@ -125,9 +129,15 @@ wind_luminosity (double f1, double f2, int mode)
     lum_lines += plasmamain[n_plasma].lum_lines * gamma_factor;
     lum_rad_recomb += plasmamain[n_plasma].lum_rr * gamma_factor;
     lum_free_free += plasmamain[n_plasma].lum_ff * gamma_factor;
+    lum_hminus_ra += plasmamain[n_plasma].hminus.ra_lum_band * gamma_factor;
+    lum_hminus_ff += plasmamain[n_plasma].hminus.hff_lum * gamma_factor;
   }
 
-  total_lum = lum_lines + lum_rad_recomb + lum_free_free;
+  total_lum = lum_lines + lum_rad_recomb + lum_free_free + lum_hminus_ra + lum_hminus_ff;
+
+  if (modes.hminus_enabled && rank_global == 0)
+    Log ("H- continuum wind luminosity: RA %.8e neutral-H-ff %.8e erg/s in %.8e--%.8e Hz (total wind %.8e)\n",
+         lum_hminus_ra, lum_hminus_ff, f1, f2, total_lum);
 
   if (mode == MODE_CMF_TIME)
   {
@@ -184,6 +194,8 @@ total_emission (xplasma, f1, f2)
   if (f2 < f1)
   {
     xplasma->lum_tot = xplasma->lum_lines = xplasma->lum_ff = xplasma->lum_rr = 0;
+    xplasma->hminus.ra_lum_band = 0.0;
+    xplasma->hminus.hff_lum = 0.0;
   }
   else
   {
@@ -208,6 +220,10 @@ total_emission (xplasma, f1, f2)
          are macro atoms or simple ions. */
       xplasma->lum_ff = total_free (xplasma, t_e, f1, f2);
       xplasma->lum_tot += xplasma->lum_ff;
+      xplasma->hminus.ra_lum_band = hminus_ra_luminosity (xplasma, f1, f2);
+      xplasma->lum_tot += xplasma->hminus.ra_lum_band;
+      xplasma->hminus.hff_lum = neutral_h_ff_luminosity (xplasma, f1, f2);
+      xplasma->lum_tot += xplasma->hminus.hff_lum;
 
 
     }
@@ -218,6 +234,10 @@ total_emission (xplasma, f1, f2)
       /* We compute the radiative recombination luminosity - this is not the same as the rr cooling rate and
          so is stored in a separate variable */
       xplasma->lum_tot += xplasma->lum_rr = total_fb (xplasma, t_e, f1, f2, FB_FULL, OUTER_SHELL);      //outer shell recombinations
+      xplasma->hminus.ra_lum_band = hminus_ra_luminosity (xplasma, f1, f2);
+      xplasma->lum_tot += xplasma->hminus.ra_lum_band;
+      xplasma->hminus.hff_lum = neutral_h_ff_luminosity (xplasma, f1, f2);
+      xplasma->lum_tot += xplasma->hminus.hff_lum;
     }
   }
 
@@ -268,6 +288,8 @@ total_emission (xplasma, f1, f2)
 #define FREE_FREE  0
 #define FREE_BOUND 1
 #define BOUND_BOUND 2
+#define HMINUS_RA 3
+#define HMINUS_FF 4
 
 int
 photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
@@ -283,12 +305,12 @@ photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
   int icell, icell_old;
   int nplasma = 0;
   int nnscat;
-  int ptype[NPLASMA][3];        //Store for the types of photons to be generated in each cell, ff first, fb next, line third
+  int ptype[NPLASMA][5];        // ff, fb, line, H- RA, and neutral-H ff
   dt_cmf = 0.0;
 
   for (nplasma = 0; nplasma < NPLASMA; nplasma++)
   {
-    for (nn = 0; nn < 3; nn++)
+    for (nn = 0; nn < 5; nn++)
       ptype[nplasma][nn] = 0;
   }
 
@@ -348,9 +370,17 @@ photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
     {
       ptype[nplasma][FREE_BOUND]++;
     }
-    else
+    else if ((xlumsum += plasmamain[nplasma].lum_lines) > xlum)
     {
       ptype[nplasma][BOUND_BOUND]++;
+    }
+    else if ((xlumsum += plasmamain[nplasma].hminus.ra_lum_band) > xlum)
+    {
+      ptype[nplasma][HMINUS_RA]++;
+    }
+    else
+    {
+      ptype[nplasma][HMINUS_FF]++;
     }
   }
 
@@ -365,7 +395,8 @@ photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
   {
 
     photstart = photstop;
-    photstop = photstart + ptype[nplasma][FREE_FREE] + ptype[nplasma][FREE_BOUND] + ptype[nplasma][BOUND_BOUND];
+    photstop = photstart + ptype[nplasma][FREE_FREE] + ptype[nplasma][FREE_BOUND]
+      + ptype[nplasma][BOUND_BOUND] + ptype[nplasma][HMINUS_RA] + ptype[nplasma][HMINUS_FF];
 
     icell = plasmamain[nplasma].nplasma;
 
@@ -386,7 +417,7 @@ photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
       {
         p[np].freq = one_fb (&plasmamain[nplasma], freqmin, freqmax);
       }
-      else
+      else if (np < photstart + ptype[nplasma][FREE_FREE] + ptype[nplasma][FREE_BOUND] + ptype[nplasma][BOUND_BOUND])
       {
 
         /* fill the lin_ptr->pow array. This must be done because it is not stored for all cells.
@@ -404,6 +435,39 @@ photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
         {
           Error ("photo_gen_wind: one_line returned 0 for freq %g %g\n", freqmin, freqmax);
         }
+      }
+      else if (np < photstart + ptype[nplasma][FREE_FREE] + ptype[nplasma][FREE_BOUND]
+               + ptype[nplasma][BOUND_BOUND] + ptype[nplasma][HMINUS_RA])
+      {
+        double energy_ev;
+        energy_ev = hminus_ra_sample_energy (plasmamain[nplasma].t_e,
+                                             PLANCK * freqmin / EV2ERGS,
+                                             PLANCK * freqmax / EV2ERGS);
+        if (!(energy_ev > 0.0))
+        {
+          Error ("photo_gen_wind: failed to sample H- RA in cell %d band %.8e %.8e Hz\n",
+                 nplasma, freqmin, freqmax);
+          energy_ev = 0.7542;
+        }
+        p[np].freq = energy_ev * EV2ERGS / PLANCK;
+        p[np].nres = NRES_HMINUS_PD;
+        p[np].emission_process = EMISSION_PROCESS_HMINUS_RA;
+      }
+      else
+      {
+        double energy_ev;
+        energy_ev = neutral_h_ff_sample_energy (plasmamain[nplasma].t_e,
+                                                PLANCK * freqmin / EV2ERGS,
+                                                PLANCK * freqmax / EV2ERGS);
+        if (!(energy_ev > 0.0))
+        {
+          Error ("photo_gen_wind: failed to sample neutral-H ff in cell %d band %.8e %.8e Hz\n",
+                 nplasma, freqmin, freqmax);
+          energy_ev = PLANCK * freqmin / EV2ERGS;
+        }
+        p[np].freq = energy_ev * EV2ERGS / PLANCK;
+        p[np].nres = NRES_HMINUS_FF;
+        p[np].emission_process = EMISSION_PROCESS_HMINUS_FF;
       }
 
       p[np].w = weight;

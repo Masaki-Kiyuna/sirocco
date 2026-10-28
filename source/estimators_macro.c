@@ -256,6 +256,39 @@ bf_estimators_increment (one, p, ds)
 
   weight_of_packet = p->w;
 
+  if (modes.hminus_enabled)
+  {
+    double energy_ev, sigma_hminus, hminus_threshold_freq, hminus_estimator, excess_energy;
+    energy_ev = freq_av * PLANCK / EV2ERGS;
+    sigma_hminus = hminus_pd_sigma (energy_ev);
+    if (sigma_hminus > 0.0)
+    {
+      hminus_threshold_freq = 0.7542 * EV2ERGS / PLANCK;
+      hminus_estimator = weight_of_packet * sigma_hminus * ds;
+      xplasma->hminus.pd_rate_est += hminus_estimator / freq_av;
+      xplasma->hminus.pd_energy_est += hminus_estimator;
+      xplasma->hminus.pd_heat_est += hminus_estimator * (1.0 - hminus_threshold_freq / freq_av);
+      excess_energy = PLANCK * (freq_av - hminus_threshold_freq);
+      /* Induced RA belongs to the chemical population balance (and its
+         thermal ledger), just as for ordinary macro bound-free transitions.
+         It is deliberately not subtracted from packet transport opacity. */
+      xplasma->hminus.ra_stim_rate_est += hminus_estimator
+        * exp (-excess_energy / (BOLTZMANN * xplasma->t_e)) / freq_av;
+      xplasma->hminus.ra_stim_e_rate_est += hminus_estimator
+        * exp (-excess_energy / (BOLTZMANN * xplasma->t_e)) / hminus_threshold_freq;
+      /* Above 10.95 eV, excited-H and eventually double-detachment product
+         channels are unresolved.  The ground-channel cross section gives a
+         reproducible upper-bound exposure diagnostic; it is not added as a
+         new physical opacity or reaction branch. */
+      if (energy_ev > 10.95)
+      {
+        xplasma->hminus.unresolved_hard_rate += hminus_estimator / freq_av;
+        xplasma->hminus.unresolved_hard_power += hminus_estimator;
+      }
+      xplasma->hminus.pd_packet_paths++;
+    }
+  }
+
   y = weight_of_packet * kappa_ff (xplasma, freq_av) * ds;
 
   xplasma->heat_ff += heat_contribution = y;    // record ff hea   
@@ -264,6 +297,18 @@ bf_estimators_increment (one, p, ds)
   /* JM 2402 note that previously we incorrectly included Compton processes in kpkt_abs, which could lead to large 
      amounts of radiation coming out incorrectly in other k->r channels in spectral cycles */
   xplasma->kpkt_abs += heat_contribution;
+
+  /* Neutral-H free-free is a distinct opacity source but deposits packet
+     energy into the same thermal pool as ordinary free-free absorption. */
+  if (modes.hminus_enabled)
+  {
+    y = weight_of_packet * neutral_h_ff_opacity (xplasma, freq_av) * ds;
+    xplasma->hminus.hff_abs_est += y;
+    xplasma->hminus.hff_heat += y;
+    xplasma->heat_ff += y;
+    xplasma->kpkt_abs += y;
+    heat_contribution += y;
+  }
 
 
 
@@ -446,6 +491,50 @@ normalise_macro_estimators (PlasmaPtr xplasma)
    */
 
   invariant_volume_time = one->vol / one->xgamma_cen;
+
+  if (modes.hminus_enabled)
+  {
+    int h1_ion, h1_config;
+    double stimfac, stat_weight_ratio;
+
+    h1_ion = 0;
+    while (h1_ion < nions && !(ion[h1_ion].z == 1 && ion[h1_ion].istate == 1))
+      h1_ion++;
+    h1_config = h1_ion < nions ? ion[h1_ion].first_nlte_level : -1;
+    xplasma->hminus.pd_rate = xplasma->hminus.pd_rate_old;
+    xplasma->hminus.pd_rate_old = xplasma->hminus.pd_rate_est / PLANCK / invariant_volume_time;
+    xplasma->hminus.pd_abs_power = xplasma->hminus.pd_energy_est * xplasma->hminus.density / invariant_volume_time;
+    xplasma->hminus.pd_heat = xplasma->hminus.pd_heat_est * xplasma->hminus.density / invariant_volume_time;
+    xplasma->hminus.unresolved_hard_rate /= PLANCK * invariant_volume_time;
+    xplasma->hminus.unresolved_hard_power *= xplasma->hminus.density / invariant_volume_time;
+    xplasma->hminus.ra_stim_rate = xplasma->hminus.ra_stim_rate_old;
+    xplasma->hminus.ra_stim_e_rate = xplasma->hminus.ra_stim_e_rate_old;
+    if (h1_config >= 0)
+    {
+      stimfac = 0.5 * pow (PLANCK * PLANCK / (2.0 * PI * MELEC * BOLTZMANN * xplasma->t_e), 1.5);
+      /* Milne/LTE factor g(H-)/[2 g(H 1s)], with g(H-)=1.  This is the
+         same statistical-weight ratio used by hminus_lte_ratio() and the
+         spontaneous RA coefficient. */
+      stat_weight_ratio = 1.0 / xconfig[h1_config].g;
+      xplasma->hminus.ra_stim_rate_old = xplasma->hminus.ra_stim_rate_est
+        * stimfac * stat_weight_ratio / PLANCK / invariant_volume_time;
+      xplasma->hminus.ra_stim_e_rate_old = xplasma->hminus.ra_stim_e_rate_est
+        * stimfac * stat_weight_ratio / PLANCK / invariant_volume_time;
+    }
+    else
+    {
+      xplasma->hminus.ra_stim_rate_old = 0.0;
+      xplasma->hminus.ra_stim_e_rate_old = 0.0;
+    }
+    xplasma->heat_photo += xplasma->hminus.pd_heat;
+    xplasma->heat_tot += xplasma->hminus.pd_heat;
+    xplasma->hminus.pd_rate_est = 0.0;
+    xplasma->hminus.pd_energy_est = 0.0;
+    xplasma->hminus.pd_heat_est = 0.0;
+    xplasma->hminus.ra_stim_rate_est = 0.0;
+    xplasma->hminus.ra_stim_e_rate_est = 0.0;
+    xplasma->hminus.pd_packet_paths = 0;
+  }
 
   /* bf estimators. During the mc calculation the quantity stored
      was weight * cross-section * path-length / frequency.

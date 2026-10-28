@@ -96,7 +96,7 @@ calculate_ds (w, p, tau_scat, tau, nres, smax, istat)
   struct photon p_start, p_stop, p_now;
   struct photon p_start_cmf, p_stop_cmf, p_now_cmf;
   int init_dvds;
-  double kap_bf_tot, kap_ff, kap_cont, kap_cont_obs;
+  double kap_bf_tot, kap_ff, kap_hminus_pd, kap_hminus_ff, kap_cont, kap_cont_obs;
   double tau_sobolev;
   WindPtr one, two;
   int check_in_grid;
@@ -222,21 +222,25 @@ calculate_ds (w, p, tau_scat, tau, nres, smax, istat)
 
   kap_bf_tot = 0;
   kap_ff = 0;
+  kap_hminus_pd = 0;
+  kap_hminus_ff = 0;
 
   if (geo.rt_mode == RT_MODE_MACRO)
   {
     freq_av = 0.5 * (freq_inner + freq_outer);
     kap_bf_tot = kappa_bf (xplasma, freq_av, 0);
     kap_ff = kappa_ff (xplasma, freq_av);
+    kap_hminus_pd = hminus_pd_opacity (xplasma, freq_av);
+    kap_hminus_ff = neutral_h_ff_opacity (xplasma, freq_av);
   }
 
   if (one->inwind < 0)
   {
-    kap_bf_tot = kap_ff = 0.0;
+    kap_bf_tot = kap_ff = kap_hminus_pd = kap_hminus_ff = 0.0;
     Error_silent ("ds_calculate: wind vol = 0 for cell %d photon position %g %g %g\n", p->grid, p->x[0], p->x[1], p->x[2]);
   }
 
-  kap_cont = kap_es + kap_bf_tot + kap_ff;      //total continuum opacity in CMF frame
+  kap_cont = kap_es + kap_bf_tot + kap_ff + kap_hminus_pd + kap_hminus_ff;      //total continuum opacity in CMF frame
 
   /* 
      Multiply by scale factor to get to observer frame
@@ -284,7 +288,7 @@ calculate_ds (w, p, tau_scat, tau, nres, smax, istat)
          * We need to randomly select the continuum process which caused
          * the photon to scatter. The variable threshold is used for this. */
 
-        *nres = select_continuum_scattering_process (kap_cont, kap_es, kap_ff, xplasma);
+        *nres = select_continuum_scattering_process (kap_cont, kap_es, kap_ff, kap_hminus_pd, kap_hminus_ff, xplasma);
         *istat = P_SCAT;
         ds_current += (tau_scat - running_tau) / (kap_cont_obs);
         running_tau = tau_scat;
@@ -390,7 +394,7 @@ calculate_ds (w, p, tau_scat, tau, nres, smax, istat)
 
   if (running_tau + kap_cont_obs * (smax - ds_current) > tau_scat)      /* A scattering event has occurred in the shell and we remain in the same shell */
   {
-    *nres = select_continuum_scattering_process (kap_cont, kap_es, kap_ff, xplasma);
+    *nres = select_continuum_scattering_process (kap_cont, kap_es, kap_ff, kap_hminus_pd, kap_hminus_ff, xplasma);
     ds_current += (tau_scat - running_tau) / (kap_cont_obs);
     *istat = P_SCAT;
     running_tau = tau_scat;
@@ -455,8 +459,8 @@ calculate_ds (w, p, tau_scat, tau, nres, smax, istat)
  **********************************************************/
 
 int
-select_continuum_scattering_process (kap_cont, kap_es, kap_ff, xplasma)
-     double kap_cont, kap_es, kap_ff;
+select_continuum_scattering_process (kap_cont, kap_es, kap_ff, kap_hminus_pd, kap_hminus_ff, xplasma)
+     double kap_cont, kap_es, kap_ff, kap_hminus_pd, kap_hminus_ff;
      PlasmaPtr xplasma;
 {
   int nres;
@@ -476,6 +480,17 @@ select_continuum_scattering_process (kap_cont, kap_es, kap_ff, xplasma)
   {
     nres = -2;
   }
+  /* H- photodetachment is a dedicated chemical continuum, not phot_top. */
+  else if ((kap_es + kap_ff + kap_hminus_pd) > threshold)
+  {
+    nres = NRES_HMINUS_PD;
+  }
+  /* Neutral-H free-free absorption is thermalized like ordinary free-free,
+     but retains its own process identifier for diagnostics. */
+  else if ((kap_es + kap_ff + kap_hminus_pd + kap_hminus_ff) > threshold)
+  {
+    nres = NRES_HMINUS_FF;
+  }
   /* Now check for bf. */
   else
   {
@@ -490,7 +505,7 @@ select_continuum_scattering_process (kap_cont, kap_es, kap_ff, xplasma)
       Exit (0);
     }
 
-    run_tot = kap_es + kap_ff;
+    run_tot = kap_es + kap_ff + kap_hminus_pd + kap_hminus_ff;
     ncont = 0;
     while (run_tot < threshold)
     {
@@ -1200,9 +1215,17 @@ scatter (p, nres, nnscat)
         Exit (0);
       }
     }
+    else if (*nres == NRES_HMINUS_PD)
+    {
+      hminus_pd_event (p, xplasma, nres, &which_out);
+    }
     else if (*nres == NRES_FF)
     {                           /* This is a ff event (SS). */
       macro_gov (p, nres, 2, &which_out);       //ff always make a k-packet
+    }
+    else if (*nres == NRES_HMINUS_FF)
+    {
+      macro_gov (p, nres, 2, &which_out);       //neutral-H ff also thermalizes
     }
 
 

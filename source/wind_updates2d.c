@@ -151,11 +151,27 @@ wind_update (WindPtr w)
     /* Calculate the densities in various ways depending on the ioniz_mode */
     Log ("XXXXX  updating %3d %3d\n", geo.wcycle, n_plasma);
     ion_abundances (&plasmamain[n_plasma], geo.ioniz_mode);
+    if (modes.hminus_enabled)
+    {
+      /* Thermal/macro population iterations can update H- after an earlier
+       * electron-density solve. Close the charge equation on the final state
+       * before communicating this cell. */
+      plasmamain[n_plasma].ne = get_ne_plasma (&plasmamain[n_plasma]);
+      hminus_update_conservation (&plasmamain[n_plasma]);
+    }
   }
 
   /*This is the end of the update loop that is parallised. We now need to exchange data between the tasks. */
 
   broadcast_updated_plasma_properties (my_nmin, my_nmax, n_cells_rank);
+  if (modes.passive_molecules_enabled)
+  {
+    /* The passive molecular closure needs the same post-broadcast radiation
+     * field and plasma background on every rank.  It never feeds back into
+     * the active plasma state. */
+    passive_molecules_update_all ();
+  }
+  hminus_cycle_summary ();
   if (geo.rt_mode == RT_MODE_MACRO && geo.macro_simple == FALSE)
   {
     broadcast_updated_macro_atom_properties (my_nmin, my_nmax, n_cells_rank);

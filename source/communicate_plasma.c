@@ -21,6 +21,38 @@
 #define N_BASIC_DOUBLES 73
 #define N_BASIC_INTS 22
 
+#ifdef MPI_ON
+/*
+ * The private chemistry records are fixed-size value objects shared by ranks
+ * running the same executable on XD2000.  Keep them separate from the legacy
+ * field-by-field plasma protocol so additions cannot silently desynchronise
+ * the long pack/unpack lists below.
+ */
+static int
+chemistry_comm_bytes_per_cell (void)
+{
+  int hminus_bytes, molecule_bytes;
+
+  MPI_Pack_size ((int) sizeof (HminusCell), MPI_BYTE, MPI_COMM_WORLD, &hminus_bytes);
+  MPI_Pack_size ((int) sizeof (PassiveMoleculeCell), MPI_BYTE, MPI_COMM_WORLD, &molecule_bytes);
+  return hminus_bytes + molecule_bytes;
+}
+
+static void
+pack_private_chemistry (PlasmaPtr cell, char *buffer, int buffer_size, int *position)
+{
+  MPI_Pack (&cell->hminus, (int) sizeof (HminusCell), MPI_BYTE, buffer, buffer_size, position, MPI_COMM_WORLD);
+  MPI_Pack (&cell->molecules, (int) sizeof (PassiveMoleculeCell), MPI_BYTE, buffer, buffer_size, position, MPI_COMM_WORLD);
+}
+
+static void
+unpack_private_chemistry (PlasmaPtr cell, char *buffer, int buffer_size, int *position)
+{
+  MPI_Unpack (buffer, buffer_size, position, &cell->hminus, (int) sizeof (HminusCell), MPI_BYTE, MPI_COMM_WORLD);
+  MPI_Unpack (buffer, buffer_size, position, &cell->molecules, (int) sizeof (PassiveMoleculeCell), MPI_BYTE, MPI_COMM_WORLD);
+}
+#endif
+
 /**********************************************************/
 /**
  * @brief Broadcast the (initialised) plasma grid to all ranks
@@ -63,7 +95,7 @@ broadcast_plasma_grid (const int n_start, const int n_stop, const int n_cells_ra
                                          N_DMO_DT_DIRECTIONS + 12 * NFORCE_DIRECTIONS);
 
 
-  const int comm_buffer_size = calculate_comm_buffer_size (num_ints, num_doubles);
+  const int comm_buffer_size = calculate_comm_buffer_size (num_ints, num_doubles) + n_cells_max * chemistry_comm_bytes_per_cell ();
 
   char *comm_buffer = malloc (comm_buffer_size);
   if (comm_buffer == NULL)
@@ -228,6 +260,7 @@ broadcast_plasma_grid (const int n_start, const int n_stop, const int n_cells_ra
         MPI_Pack (&cell->converging, 1, MPI_INT, comm_buffer, comm_buffer_size, &position, MPI_COMM_WORLD);
         MPI_Pack (&cell->ip, 1, MPI_DOUBLE, comm_buffer, comm_buffer_size, &position, MPI_COMM_WORLD);
         MPI_Pack (&cell->xi, 1, MPI_DOUBLE, comm_buffer, comm_buffer_size, &position, MPI_COMM_WORLD);
+        pack_private_chemistry (cell, comm_buffer, comm_buffer_size, &position);
       }
     }
 
@@ -387,6 +420,7 @@ broadcast_plasma_grid (const int n_start, const int n_stop, const int n_cells_ra
         MPI_Unpack (comm_buffer, comm_buffer_size, &position, &cell->converging, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Unpack (comm_buffer, comm_buffer_size, &position, &cell->ip, 1, MPI_DOUBLE, MPI_COMM_WORLD);
         MPI_Unpack (comm_buffer, comm_buffer_size, &position, &cell->xi, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+        unpack_private_chemistry (cell, comm_buffer, comm_buffer_size, &position);
       }
     }
   }
@@ -620,7 +654,7 @@ broadcast_updated_plasma_properties (const int n_start_rank, const int n_stop_ra
     n_cells_max * (N_BASIC_DOUBLES + 1 * 3 + 9 * 4 + 6 * NFLUX_ANGLES + 3 * NFORCE_DIRECTIONS + 9 * nions + 1 * nlte_levels + 3 * nphot_total +
                    1 * n_inner_tot + 9 * NXBANDS + 1 * NBINS_IN_CELL_SPEC);
 
-  const int size_of_comm_buffer = calculate_comm_buffer_size (num_ints, num_doubles);
+  const int size_of_comm_buffer = calculate_comm_buffer_size (num_ints, num_doubles) + n_cells_max * chemistry_comm_bytes_per_cell ();
   char *const comm_buffer = malloc (size_of_comm_buffer);
   if (comm_buffer == NULL)
   {
@@ -796,6 +830,7 @@ broadcast_updated_plasma_properties (const int n_start_rank, const int n_stop_ra
         MPI_Pack (&plasmamain[n_plasma].converging, 1, MPI_INT, comm_buffer, size_of_comm_buffer, &position, MPI_COMM_WORLD);
         MPI_Pack (&plasmamain[n_plasma].ip, 1, MPI_DOUBLE, comm_buffer, size_of_comm_buffer, &position, MPI_COMM_WORLD);
         MPI_Pack (&plasmamain[n_plasma].xi, 1, MPI_DOUBLE, comm_buffer, size_of_comm_buffer, &position, MPI_COMM_WORLD);
+        pack_private_chemistry (&plasmamain[n_plasma], comm_buffer, size_of_comm_buffer, &position);
 
       }
     }
@@ -971,6 +1006,7 @@ broadcast_updated_plasma_properties (const int n_start_rank, const int n_stop_ra
         MPI_Unpack (comm_buffer, size_of_comm_buffer, &position, &plasmamain[n_plasma].converging, 1, MPI_INT, MPI_COMM_WORLD);
         MPI_Unpack (comm_buffer, size_of_comm_buffer, &position, &plasmamain[n_plasma].ip, 1, MPI_DOUBLE, MPI_COMM_WORLD);
         MPI_Unpack (comm_buffer, size_of_comm_buffer, &position, &plasmamain[n_plasma].xi, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+        unpack_private_chemistry (&plasmamain[n_plasma], comm_buffer, size_of_comm_buffer, &position);
       }
     }
   }

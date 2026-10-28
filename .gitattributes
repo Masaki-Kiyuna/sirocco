@@ -9,3 +9,10 @@
 *.png binary
 *.jpg binary
 *.pdf binary
+*.bin binary
+
+# Private atomic/molecular tables carry provenance hashes for their exact
+# source bytes; do not rewrite their original line endings on checkout.
+data/hminus/*.csv binary
+data/h2/passive70/*.csv binary
+data/h2/passive70/hminus_deposit.dat binary

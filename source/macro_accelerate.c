@@ -269,6 +269,8 @@ calc_matom_matrix (xplasma, matom_matrix)
   kpacket_to_rpacket_rate += mplasma->cooling_bftot;
   kpacket_to_rpacket_rate += mplasma->cooling_adiabatic;
   kpacket_to_rpacket_rate += mplasma->cooling_ff + mplasma->cooling_ff_lofreq;
+  kpacket_to_rpacket_rate += mplasma->cooling_hminus_ra;
+  kpacket_to_rpacket_rate += mplasma->cooling_hminus_ff;
   R_matrix[nlevels_macro][nlevels_macro] += Rcont = kpacket_to_rpacket_rate;
   Q_norm[nlevels_macro] += Rcont;
 
@@ -569,6 +571,25 @@ fill_kpkt_rates (xplasma, escape, p)
     {
       cooling_normalisation += cooling_ff;
     }
+
+    mplasma->cooling_hminus_ra = hminus_ra_kpkt_cooling (xplasma);
+    if (!isfinite (mplasma->cooling_hminus_ra) || mplasma->cooling_hminus_ra < 0.0)
+    {
+      Error ("fill_kpkt_rates: invalid H- RA cooling %.8e in cell %d\n",
+             mplasma->cooling_hminus_ra, xplasma->nplasma);
+      mplasma->cooling_hminus_ra = 0.0;
+    }
+    cooling_normalisation += mplasma->cooling_hminus_ra;
+
+    mplasma->cooling_hminus_ff = neutral_h_ff_kpkt_cooling (xplasma);
+    if (!isfinite (mplasma->cooling_hminus_ff) || mplasma->cooling_hminus_ff < 0.0)
+    {
+      Error ("fill_kpkt_rates: invalid neutral-H ff cooling %.8e in cell %d\n",
+             mplasma->cooling_hminus_ff, xplasma->nplasma);
+      mplasma->cooling_hminus_ff = 0.0;
+    }
+    xplasma->hminus.hff_cool = mplasma->cooling_hminus_ff * xplasma->ne * xplasma->vol;
+    cooling_normalisation += mplasma->cooling_hminus_ff;
 
 
     /* JM -- 1310 -- we now want to add adiabatic cooling as another way of destroying kpkts
@@ -998,6 +1019,22 @@ f_kpkt_emit_accelerate (xplasma, freq_min, freq_max)
   {
     if (total_ff_lofreq > 0)
       penorm_band += total_free (xplasma, xplasma->t_e, freq_min, freq_max) / total_ff_lofreq * mplasma->cooling_ff_lofreq;
+  }
+
+  penorm += eprbs = mplasma->cooling_hminus_ra;
+  if (eprbs > 0.0)
+  {
+    penorm_band += eprbs * hminus_ra_band_fraction (xplasma->t_e,
+                                                    PLANCK * freq_min / EV2ERGS,
+                                                    PLANCK * freq_max / EV2ERGS);
+  }
+
+  penorm += eprbs = mplasma->cooling_hminus_ff;
+  if (eprbs > 0.0)
+  {
+    penorm_band += eprbs * neutral_h_ff_band_fraction (xplasma->t_e,
+                                                       PLANCK * freq_min / EV2ERGS,
+                                                       PLANCK * freq_max / EV2ERGS);
   }
 
   penorm += eprbs = mplasma->cooling_adiabatic;
