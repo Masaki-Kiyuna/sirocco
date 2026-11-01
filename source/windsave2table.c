@@ -95,7 +95,7 @@
  *
  **********************************************************/
 
-char windsave2table_help[] = "Usage: windsave2table [-r or -s] [-a] [-x wincell_no] [-xall] [-h] [--version] rootname \n\
+char windsave2table_help[] = "Usage: windsave2table [-r or -s] [-a] [-x wincell_no] [-xall] [-passive-recompute] [-h] [--version] rootname \n\
 -d             Return densities instead of ion fraction in ion tables \n\
 -s             Return number of scatters per unit volume of an ion instead if ion fractions \n\
 -a             Print additional tables with more information about ions  \n\
@@ -104,11 +104,13 @@ char windsave2table_help[] = "Usage: windsave2table [-r or -s] [-a] [-x wincell_
 -x windcell    In addition to the normal tables, print out the detailed spectra in a specific windcell\n\
 -xall          In addition to the normal tables, print out a large file containing all of the detailed cell spectra\n\
                for those cells that are in the wind\n\
+-passive-recompute  Recompute passive H2/H2+ diagnostics on the saved active plasma and radiation field\n\
 -h             get this help message and quit\n\
 ";
 
 void
-parse_arguments (int argc, char *argv[], char root[], int *ion_switch, int *spec_switch, int *edge_switch)
+parse_arguments (int argc, char *argv[], char root[], int *ion_switch, int *spec_switch, int *edge_switch,
+                 int *passive_recompute)
 {
   int i;
   char *fget_rc;
@@ -117,6 +119,7 @@ parse_arguments (int argc, char *argv[], char root[], int *ion_switch, int *spec
   *ion_switch = 0;
   *spec_switch = -1;
   *edge_switch = FALSE;
+  *passive_recompute = FALSE;
 
 
   if (argc == 1)
@@ -180,6 +183,10 @@ parse_arguments (int argc, char *argv[], char root[], int *ion_switch, int *spec
         *edge_switch = TRUE;
         printf ("Files will include edge cells\n");
       }
+      else if (!strcmp (argv[i], "-passive-recompute"))
+      {
+        *passive_recompute = TRUE;
+      }
       else if (!strncmp (argv[i], "-h", 2))
       {
         printf ("%s", windsave2table_help);
@@ -242,6 +249,7 @@ main (argc, argv)
   int ion_switch;
   int spec_switch;
   int edge_switch;
+  int passive_recompute;
   int ndom;
 
 
@@ -256,7 +264,7 @@ main (argc, argv)
    * last compiled and on what commit this was
    */
 
-  parse_arguments (argc, argv, root, &ion_switch, &spec_switch, &edge_switch);
+  parse_arguments (argc, argv, root, &ion_switch, &spec_switch, &edge_switch, &passive_recompute);
 
   printf ("Reading data from file %s\n", root);
 
@@ -286,6 +294,17 @@ main (argc, argv)
 
   printf ("Read wind_file %s\n", windsavefile);
   printf ("Read Atomic data from %s\n", geo.atomic_filename);
+
+  if (passive_recompute)
+  {
+    modes.passive_molecules_enabled = TRUE;
+    if (passive_molecules_init () != 0 || passive_molecules_update_all () < 0)
+    {
+      Error ("windsave2table: passive H2/H2+ recomputation failed\n");
+      return EXIT_FAILURE;
+    }
+    printf ("Recomputed passive H2/H2+ diagnostics from the saved active state\n");
+  }
 
   do_windsave2table (root, ion_switch, edge_switch);
 

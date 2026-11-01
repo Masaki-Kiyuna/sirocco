@@ -880,7 +880,8 @@ int main(int argc, char *argv[]);
 int one_choice(int choice, char *root, int ochoice);
 void swind_help(void);
 /* windsave2table.c */
-void parse_arguments(int argc, char *argv[], char root[], int *ion_switch, int *spec_switch, int *edge_switch);
+void parse_arguments(int argc, char *argv[], char root[], int *ion_switch, int *spec_switch, int *edge_switch,
+                     int *passive_recompute);
 int main(int argc, char *argv[]);
 /* windsave2table_sub.c */
 int do_windsave2table(char *root, int ion_switch, int edge_switch);

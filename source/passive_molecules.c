@@ -87,6 +87,17 @@ static int h2_h_collision_selftest (void);
 static double passive_h2_photoionization_sigma (double energy_ev);
 static double passive_h2plus_photodissociation_sigma (double energy_ev);
 
+/* Forrey (2013) total event coefficient for H + H + H -> H2 + H.
+ * The published convention already counts formation events; do not append a
+ * symmetry factor.  State weights are used separately to distribute this
+ * total rate over the retained 70-level network. */
+static double
+passive_h2_threebody_forrey (double temperature)
+{
+  const double t = fmax (temperature, 1.0);
+  return 6.e-32 * pow (t, -0.25) + 2.e-31 * pow (t, -0.5);
+}
+
 int
 passive_molecules_init (void)
 {
@@ -127,6 +138,11 @@ passive_molecules_init (void)
       || passive_h2_shielding_factor (1.e22, 1.e5) >= 1.e-4)
   {
     Error ("Passive H2: Draine-Bertoldi shielding limiting-case self-test failed\n");
+    return -1;
+  }
+  if (fabs (passive_h2_threebody_forrey (5000.0) / 9.963669814762516e-33 - 1.0) > 1.e-12)
+  {
+    Error ("Passive H2: Forrey three-body coefficient self-test failed\n");
     return -1;
   }
   Log ("Passive molecular continuum check: sigma_H2_PI(20eV)=%.8e cm2 sigma_H2plus_PD(10.54eV)=%.8e cm2\n",
@@ -986,10 +1002,9 @@ passive_solve_cell (PlasmaPtr xplasma, double shielding, int unshielded)
     source_lte[level] = h2_level_data[level].g
       * exp (-h2_level_data[level].energy_k / fmax (xplasma->t_e, 1.0));
     lte_sum += source_lte[level];
-    /* Cloudy big-H2 uses its level-specific dissociation coefficient and
-     * the corresponding LTE ratio for the reverse three-body source.  With
-     * its current 1e-14 exp[-D_bind/T] closure, the exponent cancels and the
-     * retained-level source is proportional to g. */
+    /* The total three-body event rate is fixed independently by the Forrey
+     * fit.  Statistical weights define only its normalized level injection
+     * distribution and must never multiply the total formation rate. */
     source_threebody[level] = h2_level_data[level].g;
     threebody_sum += source_threebody[level];
   }
@@ -1002,8 +1017,7 @@ passive_solve_cell (PlasmaPtr xplasma, double shielding, int unshielded)
    * chemistry label H+H.  Its unresolved product distribution is assigned
    * to the retained LTE closure, as specified for residual formation. */
   formation_lte = 3.e-14 * n_h1 * n_h2;
-  formation_threebody = n_hi * n_hi * n_hi * 1.e-14 * SAHA
-    / pow (fmax (xplasma->t_e, 1.0), 1.5) * 0.25 * 3.634e-5 * threebody_sum;
+  formation_threebody = passive_h2_threebody_forrey (xplasma->t_e) * n_hi * n_hi * n_hi;
   h2_photoion = passive_h2_photoionization_rate (xplasma);
   h2plus_source = xplasma->hminus.passive_h2plus_rate
     + h2plus_radiative_association (xplasma->t_e) * n_hi * n_hp
@@ -1117,6 +1131,7 @@ passive_solve_cell (PlasmaPtr xplasma, double shielding, int unshielded)
 int
 passive_molecules_update_all (void)
 {
+  const int max_shielding_iterations = 100;
   PassiveRadialCell *order;
   double max_change = 0.0, total_h2_column = 0.0, total_h2plus_column = 0.0;
   int count = 0, index, iteration;
@@ -1141,7 +1156,7 @@ passive_molecules_update_all (void)
     memset (&plasmamain[order[index].nplasma].molecules, 0, sizeof (PassiveMoleculeCell));
     passive_solve_cell (&plasmamain[order[index].nplasma], 1.0, TRUE);
   }
-  for (iteration = 0; iteration < 30; iteration++)
+  for (iteration = 0; iteration < max_shielding_iterations; iteration++)
   {
     double column = 0.0;
     max_change = 0.0;
@@ -1163,7 +1178,7 @@ passive_molecules_update_all (void)
     if (max_change < 1.e-5)
       break;
   }
-  if (iteration >= 30)
+  if (iteration >= max_shielding_iterations)
     for (index = 0; index < count; index++)
       plasmamain[order[index].nplasma].molecules.flags |= 8u;
   for (index = 0; index < count; index++)
@@ -1200,7 +1215,7 @@ passive_molecules_update_all (void)
   Log ("Passive H2 update: cells=%d shielding_iterations=%d max_relative_change=%.3e\n",
        count, iteration + 1, max_change);
   free (order);
-  return iteration < 30 ? 0 : 1;
+  return iteration < max_shielding_iterations ? 0 : 1;
 }
 
 static double
