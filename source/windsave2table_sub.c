@@ -151,6 +151,7 @@ create_hminus_table (ndom, rootname)
 
   fprintf (fptr, "# H- is an active hydrogen-network state, not a positive charge-index ion.\n");
   fprintf (fptr, "# pd_rate is the lagged solver rate; pd_rate_est is the current-cycle path estimator.\n");
+  fprintf (fptr, "# PD-volume-fix v1: pd_abs_power, pd_heat and hard_power are cell-integrated [erg s^-1].\n");
   fprintf (fptr, "# hard_rate [s-1 per H-] and hard_power [erg s-1 cell-1] are ground-cross-section-weighted upper-bound exposure diagnostics above 10.95 eV, not implemented hard-channel rates.\n");
   fprintf (fptr,
            "r rcen i t_e ne nHminus Hminus_frac pd_rate pd_rate_est stim_RA stim_RA_est stim_RA_e stim_RA_e_est pd_abs_power pd_heat "

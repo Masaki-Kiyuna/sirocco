@@ -142,6 +142,7 @@ hminus_validate_startup (void)
       return -1;
     }
     Log ("Warning: private H- chemical macro-atom implementation enabled. Old windsave restarts are not supported.\n");
+    Log ("H- PD-volume-fix v1: photodetachment thermal power is integrated over plasma volume.\n");
     Log ("H- neutral-H free-free mode: %s\n",
          modes.hminus_ff_mode == HMINUS_FF_CLOUDY_C25_ALLT ? "cloudy_c25_allt" : "john88_guarded");
     if (hminus_data_init () != 0)

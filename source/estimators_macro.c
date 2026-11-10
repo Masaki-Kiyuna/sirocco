@@ -503,10 +503,14 @@ normalise_macro_estimators (PlasmaPtr xplasma)
     h1_config = h1_ion < nions ? ion[h1_ion].first_nlte_level : -1;
     xplasma->hminus.pd_rate = xplasma->hminus.pd_rate_old;
     xplasma->hminus.pd_rate_old = xplasma->hminus.pd_rate_est / PLANCK / invariant_volume_time;
-    xplasma->hminus.pd_abs_power = xplasma->hminus.pd_energy_est * xplasma->hminus.density / invariant_volume_time;
-    xplasma->hminus.pd_heat = xplasma->hminus.pd_heat_est * xplasma->hminus.density / invariant_volume_time;
+    /* Path estimators divided by invariant_volume_time are per unit volume.
+       The thermal ledger and exported powers are integrated over gas volume. */
+    xplasma->hminus.pd_abs_power =
+      xplasma->hminus.pd_energy_est * xplasma->hminus.density * xplasma->vol / invariant_volume_time;
+    xplasma->hminus.pd_heat =
+      xplasma->hminus.pd_heat_est * xplasma->hminus.density * xplasma->vol / invariant_volume_time;
     xplasma->hminus.unresolved_hard_rate /= PLANCK * invariant_volume_time;
-    xplasma->hminus.unresolved_hard_power *= xplasma->hminus.density / invariant_volume_time;
+    xplasma->hminus.unresolved_hard_power *= xplasma->hminus.density * xplasma->vol / invariant_volume_time;
     xplasma->hminus.ra_stim_rate = xplasma->hminus.ra_stim_rate_old;
     xplasma->hminus.ra_stim_e_rate = xplasma->hminus.ra_stim_e_rate_old;
     if (h1_config >= 0)
