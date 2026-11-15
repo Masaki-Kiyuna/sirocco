@@ -172,7 +172,9 @@ bf_estimators_increment (one, p, ds)
         weight_of_packet = p->w;
         y = weight_of_packet * x * ds;
 
-        exponential = y * exp (-(freq_av - ft) / BOLTZMANN / xplasma->t_e);
+        /* Lucy (2003), eqs. 14-15: the Saha threshold exponential cancels,
+           leaving the electron kinetic energy h(nu-nu0) in the exponent. */
+        exponential = y * exp (-H_OVER_K * (freq_av - ft) / xplasma->t_e);
 
         /* Increment the photoionization rate estimator */
 
@@ -473,7 +475,7 @@ normalise_macro_estimators (PlasmaPtr xplasma)
 {
   double invariant_volume_time;
   int i, j, nlev_upper, ilev, isource;
-  double stimfac, line_freq, stat_weight_ratio;
+  double stimfac, bf_stimfac, line_freq, stat_weight_ratio;
   double heat_contribution, lower_density, upper_density;
   WindPtr one;
   MacroPtr mplasma;
@@ -556,7 +558,8 @@ normalise_macro_estimators (PlasmaPtr xplasma)
      the LTE population ratio. The multiplicative factor
      is given by: */
 
-  stimfac = 0.5 * pow (PLANCK * PLANCK / 2. / PI / MELEC / BOLTZMANN / xplasma->t_e, 3. / 2.);
+  /* Do not reuse the dimensionless BB correction below for this cm^3 factor. */
+  bf_stimfac = 0.5 * pow (PLANCK * PLANCK / 2. / PI / MELEC / BOLTZMANN / xplasma->t_e, 3. / 2.);
 
   for (i = 0; i < nlte_levels; i++)
   {
@@ -574,14 +577,15 @@ normalise_macro_estimators (PlasmaPtr xplasma)
          ratio of statistical weights too. For free electron statistical
          weight = 2 is included in stimfac above. */
 
-      stat_weight_ratio = xconfig[phot_top[xconfig[i].bfu_jump[j]].uplev].g / xconfig[i].g;
+      /* Same Milne/Saha weight ratio as get_alpha_st and alpha_sp. */
+      stat_weight_ratio = xconfig[i].g / xconfig[phot_top[xconfig[i].bfu_jump[j]].uplev].g;
 
       mplasma->alpha_st_old[xconfig[i].bfu_indx_first + j] =
-        mplasma->alpha_st[xconfig[i].bfu_indx_first + j] * stimfac * stat_weight_ratio / PLANCK / invariant_volume_time;
+        mplasma->alpha_st[xconfig[i].bfu_indx_first + j] * bf_stimfac * stat_weight_ratio / PLANCK / invariant_volume_time;
       mplasma->alpha_st[xconfig[i].bfu_indx_first + j] = 0.0;
 
       mplasma->alpha_st_e_old[xconfig[i].bfu_indx_first + j] =
-        mplasma->alpha_st_e[xconfig[i].bfu_indx_first + j] * stimfac * stat_weight_ratio / PLANCK / invariant_volume_time;
+        mplasma->alpha_st_e[xconfig[i].bfu_indx_first + j] * bf_stimfac * stat_weight_ratio / PLANCK / invariant_volume_time;
       mplasma->alpha_st_e[xconfig[i].bfu_indx_first + j] = 0.0;
 
       /* For continuua whose edges lie beyond freqmin assume that gamma
