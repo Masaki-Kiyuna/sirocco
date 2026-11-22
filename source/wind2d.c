@@ -206,7 +206,9 @@ vwind_xyz (ndom, p, v)
 
   if (zdom[ndom].coord_type == SPHERICAL)
   {                             // put the velocity into cylindrical coordinates on the xz axis
-    x = sqrt (vv[0] * vv[0] + vv[2] * vv[2]);   //v_r
+    /* Spherical imported grids store a signed radial component in v[0].
+       Other wind models may store two poloidal components on the 45-degree grid. */
+    x = zdom[ndom].wind_type == IMPORT ? vv[0] : sqrt (vv[0] * vv[0] + vv[2] * vv[2]);
     r = length (p->x);
     vv[0] = rho / r * x;
     vv[2] = p->x[2] / r * x;

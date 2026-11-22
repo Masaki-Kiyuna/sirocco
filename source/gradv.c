@@ -102,11 +102,6 @@ dvwind_ds_cmf (p)
     /* copy the photon and move it by ds, and evaluate the velocity
        at the new point */
     stuff_phot (&pp, &pnew);
-    /*
-     * Put the photon into the observer frame, this way move_phot won't throw
-     * an error. Should be ok since we are only using move_photon to move a
-     * photon some vector ds.
-     * */
     pnew.frame = F_OBSERVER;
     move_phot (&pnew, ds);
     model_velocity (ndom, pnew.x, v2);
@@ -115,11 +110,17 @@ dvwind_ds_cmf (p)
     if (rel_mode == REL_MODE_FULL)
     {
       observer_to_local_frame_velocity (v2, v1, dv);
-      dvds = length (dv) / ds;
+      if (zdom[ndom].wind_type == IMPORT && zdom[ndom].coord_type == SPHERICAL)
+        dvds = dot (dv, pp.lmn) / ds;
+      else
+        dvds = length (dv) / ds;
     }
     else
     {
-      dvds = fabs (dot (v1, pp.lmn) - dot (v2, pp.lmn)) / ds;
+      if (zdom[ndom].wind_type == IMPORT && zdom[ndom].coord_type == SPHERICAL)
+        dvds = (dot (v2, pp.lmn) - dot (v1, pp.lmn)) / ds;
+      else
+        dvds = fabs (dot (v1, pp.lmn) - dot (v2, pp.lmn)) / ds;
     }
   }
 
@@ -240,7 +241,10 @@ calculate_cell_dvds_ave (int ndom, WindPtr cell)
     vadd (p.x, delta, pp.x);
     model_velocity (ndom, pp.x, vdelta);
     vsub (vdelta, v_zero, diff);
-    dvds = length (diff);
+    if (zdom[ndom].wind_type == IMPORT && zdom[ndom].coord_type == SPHERICAL)
+      dvds = fabs (dot (diff, delta)) / ds;
+    else
+      dvds = length (diff);
 
     /* Find the maximum and minimum values of dvds and the direction
      * for this. This is only required for additional diagnostics */

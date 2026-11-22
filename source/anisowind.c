@@ -121,7 +121,7 @@ randwind_thermal_trapping (p, nnscat)
     randvec (z_prime, 1.0);
     stuff_v (z_prime, p->lmn);
 
-    dvds = dvwind_ds_cmf (p);
+    dvds = fabs (dvwind_ds_cmf (p));
 
     if (dvds > dvds_test)
     {
