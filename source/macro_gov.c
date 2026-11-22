@@ -22,6 +22,22 @@
 
 #include "atomic.h"
 #include "sirocco.h"
+#include "toy_diag.h"
+
+static int
+is_h_n1_bf_emission (int process, int config)
+{
+  int n;
+
+  if (process != EMISSION_PROCESS_MACRO_BF || config < 0 || config >= nlevels_macro)
+    return FALSE;
+  if (xconfig[config].z != 1 || xconfig[config].istate != 1)
+    return FALSE;
+  n = (int) floor (xconfig[config].q_num + 0.5);
+  if (n < 1)
+    n = xconfig[config].ilv;
+  return n == 1;
+}
 
 
 /**********************************************************/
@@ -64,6 +80,7 @@ macro_gov (p, nres, matom_or_kpkt, which_out)
   int n_jump_tot = 0;
   int n_loop = 0;
   int new_uplvl, uplvl;
+  int entry_process, entry_config, entry_nres;
   PlasmaPtr xplasma;
   MacroPtr mplasma;
   WindPtr one;
@@ -71,6 +88,9 @@ macro_gov (p, nres, matom_or_kpkt, which_out)
   one = &wmain[p->grid];
   xplasma = &plasmamain[one->nplasma];
   mplasma = &macromain[one->nplasma];
+  entry_process = p->emission_process;
+  entry_config = p->emission_config;
+  entry_nres = *nres;
 
   /* before we do anything else we look to see if we are exciting
      simple/fake two-level ions */
@@ -185,6 +205,15 @@ macro_gov (p, nres, matom_or_kpkt, which_out)
     {
       emit_matom (wmain, p, nres, new_uplvl, 0, VERY_BIG);
       *which_out = MATOM;
+    }
+
+    if (is_h_n1_bf_emission (p->emission_process, p->emission_config)
+        && !is_h_n1_bf_emission (entry_process, entry_config))
+    {
+      p->hfb1_entry_process = entry_process;
+      p->hfb1_entry_config = entry_config;
+      p->hfb1_entry_nres = entry_nres;
+      p->hfb1_entry_grid = p->grid;
     }
 
     if (p->origin < 10)
@@ -681,7 +710,7 @@ macro_pops_fill_rate_matrix (MacroPtr mplasma, PlasmaPtr xplasma, double xne, in
            including a collisional term (which depends on ne). */
 
         line_ptr = &line[xconfig[index_lvl].bbd_jump[index_bbd]];
-        rate = (a21 (line_ptr) * line_escape_factor (line_ptr, xplasma));
+        rate = (a21 (line_ptr) * toy_diag_escape_used (line_ptr, xplasma, line_escape_factor (line_ptr, xplasma)));
         rate += macro_bb_coll_deexc_rate (line_ptr, xplasma);
 
         /* This is the rate out of the level in question. We need to add it

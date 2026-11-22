@@ -30,6 +30,8 @@ int create_h_level_table (int ndom, char rootname[]);
 int create_h_macro_bf_table (int ndom, char rootname[]);
 int create_h_tau_table (int ndom, char rootname[]);
 int create_h_model_table (int ndom, char rootname[]);
+int create_h_level_flow_table (int ndom, char rootname[]);
+int create_h_n2_flow_table (int ndom, char rootname[]);
 int create_h_source_bf_table (int ndom, char rootname[]);
 int create_hminus_table (int ndom, char rootname[]);
 int create_passive_molecule_table (int ndom, char rootname[]);
@@ -87,6 +89,8 @@ do_windsave2table (root, ion_switch, edge_switch)
     create_h_macro_bf_table (ndom, rootname);
     create_h_tau_table (ndom, rootname);
     create_h_model_table (ndom, rootname);
+    create_h_level_flow_table (ndom, rootname);
+    create_h_n2_flow_table (ndom, rootname);
     create_h_source_bf_table (ndom, rootname);
     create_hminus_table (ndom, rootname);
     create_passive_molecule_table (ndom, rootname);
@@ -708,7 +712,7 @@ create_h_level_table (ndom, rootname)
  * @details
  *
  * This is a post-processing diagnostic. It does not change the calculation.
- * The table exposes saved macro-atom estimators for H I n=1..5 where those
+ * The table exposes saved macro-atom estimators for H I n=1..20 where those
  * levels can be identified in xconfig. The bf_in/out columns are local packet
  * interaction counters for the corresponding photoionization continua. They
  * are useful monitoring proxies, but are not a complete escaped-versus-
@@ -722,7 +726,11 @@ create_h_macro_bf_table (ndom, rootname)
      char rootname[];
 {
   char filename[132];
-  int hconf[6];
+  enum
+  {
+    H_MACRO_BF_MAX_N = 20
+  };
+  int hconf[H_MACRO_BF_MAX_N + 1];
   int i, ilev, j, k, n, nstart, ndim2, nwind, nplasma;
   int iph, uplev, bfd_index;
   double h0_density, hp_density, bf_in, bf_out, bf_abs_proxy;
@@ -742,7 +750,7 @@ create_h_macro_bf_table (ndom, rootname)
     return (-1);
   }
 
-  for (i = 0; i < 6; i++)
+  for (i = 0; i <= H_MACRO_BF_MAX_N; i++)
     hconf[i] = -1;
 
   for (n = 0; n < nlevels; n++)
@@ -750,11 +758,11 @@ create_h_macro_bf_table (ndom, rootname)
     if (xconfig[n].z == 1 && xconfig[n].istate == 1 && xconfig[n].macro_info == 1)
     {
       ilev = (int) floor (xconfig[n].q_num + 0.5);
-      if (ilev >= 1 && ilev <= 5 && fabs (xconfig[n].q_num - ilev) < 1.0e-6)
+      if (ilev >= 1 && ilev <= H_MACRO_BF_MAX_N && fabs (xconfig[n].q_num - ilev) < 1.0e-6)
       {
         hconf[ilev] = n;
       }
-      else if (xconfig[n].ilv >= 1 && xconfig[n].ilv <= 5 && hconf[xconfig[n].ilv] < 0)
+      else if (xconfig[n].ilv >= 1 && xconfig[n].ilv <= H_MACRO_BF_MAX_N && hconf[xconfig[n].ilv] < 0)
       {
         hconf[xconfig[n].ilv] = n;
       }
@@ -771,7 +779,7 @@ create_h_macro_bf_table (ndom, rootname)
            "# bf_abs_proxy = bf_in/(bf_in+bf_out) uses local packet bound-free counters and is only a monitoring proxy, not a rigorous free-bound photon reabsorption fraction.\n");
   fprintf (fptr, "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s",
            "r", "rcen", "i", "nwind", "nplasma", "inwind", "converge", "t_e", "ne", "H0_den", "Hp_den");
-  for (ilev = 1; ilev <= 5; ilev++)
+  for (ilev = 1; ilev <= H_MACRO_BF_MAX_N; ilev++)
   {
     fprintf (fptr,
              " %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d %12s%d",
@@ -806,7 +814,7 @@ create_h_macro_bf_table (ndom, rootname)
              (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].t_e : 0.0,
              (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].ne : 0.0, h0_density, hp_density);
 
-    for (ilev = 1; ilev <= 5; ilev++)
+    for (ilev = 1; ilev <= H_MACRO_BF_MAX_N; ilev++)
     {
       gamma = gamma_e = alpha_st_ne = recomb_sp_ne = recomb_sp_e_ne = recomb_energy_proxy = 0.0;
       level_density = level_frac = 0.0;
@@ -985,12 +993,12 @@ create_h_tau_table (ndom, rootname)
 {
   char filename[132];
   int i, nstart, ndim2, nwind, nplasma;
-  double converge, rcen, dr_eff, tau_es, tau_es_outward, tau_lya, tau_lyb, tau_ha, tau_hb;
+  double converge, rcen, dr_eff, tau_es, tau_es_outward, tau_lya, tau_lyb, tau_ha, tau_hb, tau_paa;
   double tau_lyc, tau_bac, tau_lyc_outward, tau_bac_outward;
   double sigma_lyc, sigma_bac, e_lyc_ev, e_bac_ev;
   double tau_es_cell[NDIM2], tau_es_out_cell[NDIM2];
   double tau_lyc_cell[NDIM2], tau_lyc_out_cell[NDIM2], tau_bac_cell[NDIM2], tau_bac_out_cell[NDIM2];
-  LinePtr lya, lyb, ha, hb;
+  LinePtr lya, lyb, ha, hb, paa;
   TopPhotPtr lyc, bac;
   FILE *fptr;
 
@@ -1007,6 +1015,7 @@ create_h_tau_table (ndom, rootname)
   lyb = find_h_line_by_levels (1, 3);
   ha = find_h_line_by_levels (2, 3);
   hb = find_h_line_by_levels (2, 4);
+  paa = find_h_line_by_levels (3, 4);
   lyc = find_h_cont_by_level (1);
   bac = find_h_cont_by_level (2);
   sigma_lyc = sigma_bac = e_lyc_ev = e_bac_ev = 0.0;
@@ -1050,9 +1059,9 @@ create_h_tau_table (ndom, rootname)
   fprintf (fptr,
            "# Diagnostic local optical depths. tau_line_* are Sobolev optical depths; tau_es_cell = sigma_T ne dr_eff; tau_lyc/bac use H I n=1/2 bound-free sigma at threshold just above edge; *_out is summed from this cell to the outer boundary.\n");
   fprintf (fptr,
-           "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s\n",
+           "%9s %9s %4s %5s %7s %6s %8s %9s %9s %9s %9s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s %12s\n",
            "r", "rcen", "i", "nwind", "nplasma", "inwind", "converge", "t_e", "ne", "dvds_ave", "tau_es", "tau_es_out", "tau_lya",
-           "tau_lyb", "tau_ha", "tau_hb", "tau_lyc", "tau_lyc_out", "sig_lyc", "e_lyc_ev", "tau_bac", "tau_bac_out", "sig_bac",
+           "tau_lyb", "tau_ha", "tau_hb", "tau_paa", "tau_lyc", "tau_lyc_out", "sig_lyc", "e_lyc_ev", "tau_bac", "tau_bac_out", "sig_bac",
            "e_bac_ev", "dr_eff");
 
   tau_es_outward = tau_lyc_outward = tau_bac_outward = 0.0;
@@ -1070,7 +1079,7 @@ create_h_tau_table (ndom, rootname)
   {
     nwind = nstart + i;
     nplasma = wmain[nwind].nplasma;
-    converge = tau_lya = tau_lyb = tau_ha = tau_hb = -1.0;
+    converge = tau_lya = tau_lyb = tau_ha = tau_hb = tau_paa = -1.0;
     tau_es = tau_es_cell[i];
     tau_es_outward = tau_es_out_cell[i];
     tau_lyc = tau_lyc_cell[i];
@@ -1095,14 +1104,16 @@ create_h_tau_table (ndom, rootname)
         tau_ha = sobolev (&wmain[nwind], wmain[nwind].x, plasmamain[nplasma].density[ha->nion], ha, wmain[nwind].dvds_ave);
       if (hb != NULL)
         tau_hb = sobolev (&wmain[nwind], wmain[nwind].x, plasmamain[nplasma].density[hb->nion], hb, wmain[nwind].dvds_ave);
+      if (paa != NULL)
+        tau_paa = sobolev (&wmain[nwind], wmain[nwind].x, plasmamain[nplasma].density[paa->nion], paa, wmain[nwind].dvds_ave);
     }
 
     fprintf (fptr,
-             "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e\n",
+             "%9.3e %9.3e %4d %5d %7d %6d %8.0f %9.2e %9.2e %9.2e %9.2e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e %12.4e\n",
              wmain[nwind].r, wmain[nwind].rcen, i, wmain[nwind].nwind, nplasma, wmain[nwind].inwind, converge,
              (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].t_e : 0.0,
              (nplasma >= 0 && nplasma < NPLASMA) ? plasmamain[nplasma].ne : 0.0, wmain[nwind].dvds_ave, tau_es, tau_es_outward,
-             tau_lya, tau_lyb, tau_ha, tau_hb, tau_lyc, tau_lyc_outward, sigma_lyc, e_lyc_ev, tau_bac, tau_bac_outward,
+             tau_lya, tau_lyb, tau_ha, tau_hb, tau_paa, tau_lyc, tau_lyc_outward, sigma_lyc, e_lyc_ev, tau_bac, tau_bac_outward,
              sigma_bac, e_bac_ev, dr_eff);
   }
 
@@ -1233,13 +1244,331 @@ create_h_model_table (ndom, rootname)
 }
 
 
+/**********************************************************/
+/**
+ * @brief Write population-weighted H I n=1--5 level-flow budgets.
+ *
+ * Bound-bound rates are identical to those used by the macro-atom rate
+ * matrix.  Positive net rates feed target_n; negative rates drain it.
+ * partner_n=0 is the bound-free row and also carries any two-photon loss.
+ * This is a passive diagnostic and does not modify the calculation.
+ **********************************************************/
+int
+create_h_level_flow_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[LINELENGTH];
+  int i, j, k, target, partner, nstart, ndim2, nwind, nplasma;
+  int target_conf, partner_conf, lower_conf, upper_conf, bbu_index, iph, bfd_index;
+  double target_den, partner_den, rad_in, rad_out, coll_in, coll_out;
+  double bare_in, bare_out, beta, rate_up, rate_down;
+  double bf_rec_sp, bf_rec_st, bf_rec_3b, bf_ion_ph, bf_ion_coll, bf_net, two_out, known_net;
+  double upper_den, ne, xhii, htot;
+  LinePtr line_ptr;
+  TopPhotPtr cont_ptr;
+  PlasmaPtr xplasma;
+  MacroPtr mplasma;
+  FILE *fptr;
+
+  snprintf (filename, sizeof (filename), "%s.H.level_flow.txt", rootname);
+  if ((fptr = fopen (filename, "w")) == NULL)
+  {
+    Error ("create_h_level_flow_table: could not open %s\n", filename);
+    return (-1);
+  }
+
+  fprintf (fptr, "# Population-weighted H I n=1--20 flow rates [cm^-3 s^-1]; diagnostic only.\n");
+  fprintf (fptr, "# Positive net values feed target_n. rad_up uses B12*jbar_old (already net of stimulated emission); rad_down uses A21*Sobolev_beta.\n");
+  fprintf (fptr, "# partner_n=0 contains bound-free terms and two-photon loss; known_net is the sum of all rows for a target level and is populated only on this row.\n");
+  fprintf (fptr, "r rcen i converge t_e ne xHII target_n partner_n target_den partner_den ");
+  fprintf (fptr, "rad_in rad_out rad_net coll_in coll_out coll_net bareA_in bareA_out ");
+  fprintf (fptr, "bf_rec_sp bf_rec_st bf_rec_3b bf_ion_ph bf_ion_col bf_net two_out row_net known_net\n");
+
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    if (nplasma < 0 || nplasma >= NPLASMA)
+      continue;
+    xplasma = &plasmamain[nplasma];
+    mplasma = &macromain[nplasma];
+    ne = xplasma->ne;
+    htot = xplasma->density[0] + xplasma->density[1];
+    xhii = htot > 0.0 ? xplasma->density[1] / htot : 0.0;
+
+    for (target = 1; target <= 20; target++)
+    {
+      target_conf = find_h_config_by_level (target);
+      if (target_conf < 0)
+        continue;
+      target_den = den_config (xplasma, target_conf);
+      known_net = 0.0;
+
+      for (partner = 1; partner <= 20; partner++)
+      {
+        if (partner == target)
+          continue;
+        partner_conf = find_h_config_by_level (partner);
+        if (partner_conf < 0)
+          continue;
+        lower_conf = target < partner ? target_conf : partner_conf;
+        upper_conf = target < partner ? partner_conf : target_conf;
+        partner_den = den_config (xplasma, partner_conf);
+        rad_in = rad_out = coll_in = coll_out = bare_in = bare_out = 0.0;
+
+        for (j = 0; j < nlines; j++)
+        {
+          line_ptr = &line[j];
+          if (line_ptr->nconfigl != lower_conf || line_ptr->nconfigu != upper_conf)
+            continue;
+          bbu_index = -1;
+          for (k = 0; k < xconfig[lower_conf].n_bbu_jump; k++)
+            if (xconfig[lower_conf].bbu_jump[k] == j)
+              bbu_index = k;
+          if (bbu_index < 0)
+            continue;
+
+          beta = line_escape_factor (line_ptr, xplasma);
+          rate_up = b12 (line_ptr) * mplasma->jbar_old[xconfig[lower_conf].bbu_indx_first + bbu_index];
+          rate_down = a21 (line_ptr) * beta;
+          if (target < partner)
+          {
+            rad_out += target_den * rate_up;
+            rad_in += partner_den * rate_down;
+            coll_out += target_den * macro_bb_coll_exc_rate (line_ptr, xplasma);
+            coll_in += partner_den * macro_bb_coll_deexc_rate (line_ptr, xplasma);
+            bare_in += partner_den * a21 (line_ptr);
+          }
+          else
+          {
+            rad_in += partner_den * rate_up;
+            rad_out += target_den * rate_down;
+            coll_in += partner_den * macro_bb_coll_exc_rate (line_ptr, xplasma);
+            coll_out += target_den * macro_bb_coll_deexc_rate (line_ptr, xplasma);
+            bare_out += target_den * a21 (line_ptr);
+          }
+        }
+        known_net += (rad_in - rad_out) + (coll_in - coll_out);
+        fprintf (fptr,
+                 "%.8e %.8e %d %d %.8e %.8e %.8e %d %d %.8e %.8e "
+                 "%.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e "
+                 "0 0 0 0 0 0 0 %.8e 0\n",
+                 wmain[nwind].r, wmain[nwind].rcen, i, xplasma->converge_whole,
+                 xplasma->t_e, ne, xhii, target, partner, target_den, partner_den,
+                 rad_in, rad_out, rad_in - rad_out, coll_in, coll_out, coll_in - coll_out,
+                 bare_in, bare_out, (rad_in - rad_out) + (coll_in - coll_out));
+      }
+
+      bf_rec_sp = bf_rec_st = bf_rec_3b = bf_ion_ph = bf_ion_coll = two_out = 0.0;
+      for (j = 0; j < xconfig[target_conf].n_bfu_jump; j++)
+      {
+        iph = xconfig[target_conf].bfu_jump[j];
+        cont_ptr = &phot_top[iph];
+        upper_conf = cont_ptr->uplev;
+        upper_den = den_config (xplasma, upper_conf);
+        bf_ion_ph += target_den * mplasma->gamma_old[xconfig[target_conf].bfu_indx_first + j];
+        bf_ion_coll += target_den * q_ioniz (cont_ptr, xplasma->t_e) * ne;
+        bf_rec_st += upper_den * mplasma->alpha_st_old[xconfig[target_conf].bfu_indx_first + j] * ne;
+        bfd_index = -1;
+        for (k = 0; k < xconfig[upper_conf].n_bfd_jump; k++)
+          if (xconfig[upper_conf].bfd_jump[k] == iph)
+            bfd_index = k;
+        if (bfd_index >= 0)
+        {
+          bf_rec_sp += upper_den * mplasma->recomb_sp[xconfig[upper_conf].bfd_indx_first + bfd_index] * ne;
+          bf_rec_3b += upper_den * q_recomb (cont_ptr, xplasma->t_e) * ne * ne;
+        }
+      }
+      j = two_photon_process_for_upper (target_conf);
+      if (j >= 0)
+        two_out = target_den * two_photon_rate (j);
+      bf_net = bf_rec_sp + bf_rec_st + bf_rec_3b - bf_ion_ph - bf_ion_coll;
+      known_net += bf_net - two_out;
+      fprintf (fptr,
+               "%.8e %.8e %d %d %.8e %.8e %.8e %d 0 %.8e %.8e "
+               "0 0 0 0 0 0 0 0 %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e %.8e\n",
+               wmain[nwind].r, wmain[nwind].rcen, i, xplasma->converge_whole,
+               xplasma->t_e, ne, xhii, target, target_den, xplasma->density[1],
+               bf_rec_sp, bf_rec_st, bf_rec_3b, bf_ion_ph, bf_ion_coll, bf_net,
+               two_out, bf_net - two_out, known_net);
+    }
+  }
+  fclose (fptr);
+  return (0);
+}
+
+
+/**********************************************************/
+/**
+ * @brief Write the local H I n=2 population-flow budget used by the
+ *        Balmer-front diagnostic.
+ *
+ * The bound-bound rates are the same rates used by
+ * macro_pops_fill_rate_matrix().  In particular, rad_up=B12*jbar_old
+ * already contains the stimulated-emission correction, while rad_down is
+ * A21 times the Sobolev escape probability.  Therefore rad_up is not the
+ * uncorrected gross absorption rate.  Bare-A columns are included only to
+ * expose the amount hidden by line trapping; they are not used in the
+ * level-population balance.
+ *
+ * Rates are population weighted and are written per unit volume
+ * [cm^-3 s^-1].  A partner_n=0 row contains the bound-free and two-photon
+ * terms.  Positive net_* values feed n=2 and negative values drain it.
+ **********************************************************/
+int
+create_h_n2_flow_table (ndom, rootname)
+     int ndom;
+     char rootname[];
+{
+  char filename[LINELENGTH];
+  int i, j, k, nstart, ndim2, nwind, nplasma, n2conf, partner, lower_n, upper_n;
+  int lower_conf, upper_conf, bbu_index, iph, bfd_index;
+  double n2den, partner_den, rad_to2, rad_from2, coll_to2, coll_from2;
+  double bare_to2, bare_from2, beta, rate_up, rate_down;
+  double bf_rec_sp, bf_rec_st, bf_rec_3b, bf_ion_ph, bf_ion_coll, two_from2;
+  double upper_den, ne, xhii, htot;
+  LinePtr line_ptr;
+  TopPhotPtr cont_ptr;
+  PlasmaPtr xplasma;
+  MacroPtr mplasma;
+  FILE *fptr;
+
+  snprintf (filename, sizeof (filename), "%s.H.n2_flow.txt", rootname);
+  if ((fptr = fopen (filename, "w")) == NULL)
+  {
+    Error ("create_h_n2_flow_table: could not open %s\n", filename);
+    return (-1);
+  }
+
+  fprintf (fptr, "# Population-weighted H I n=2 flow rates [cm^-3 s^-1]; diagnostic only.\n");
+  fprintf (fptr, "# rad_to2/from2 are solver rates: upward B12*jbar_old is already net of stimulated emission; downward=A21*Sobolev_beta.\n");
+  fprintf (fptr, "# bareA columns omit escape probability and are context only. partner_n=0 carries bound-free and two-photon terms.\n");
+  fprintf (fptr, "%9s %9s %4s %8s %9s %9s %9s %4s %11s", "r", "rcen", "i", "converge", "t_e", "ne", "xHII", "partner", "n2_den");
+  fprintf (fptr, " %11s %11s %11s %11s %11s %11s %11s %11s %11s", "partner_den", "rad_to2", "rad_from2", "rad_net", "coll_to2", "coll_from2", "coll_net", "bareA_to2", "bareA_from2");
+  fprintf (fptr, " %11s %11s %11s %11s %11s %11s %11s\n", "bf_rec_sp", "bf_rec_st", "bf_rec_3b", "bf_ion_ph", "bf_ion_col", "bf_net", "two_from2");
+
+  n2conf = find_h_config_by_level (2);
+  nstart = zdom[ndom].nstart;
+  ndim2 = zdom[ndom].ndim2;
+  for (i = 0; i < ndim2; i++)
+  {
+    nwind = nstart + i;
+    nplasma = wmain[nwind].nplasma;
+    if (nplasma < 0 || nplasma >= NPLASMA || n2conf < 0)
+      continue;
+    xplasma = &plasmamain[nplasma];
+    mplasma = &macromain[nplasma];
+    ne = xplasma->ne;
+    n2den = den_config (xplasma, n2conf);
+    htot = xplasma->density[0] + xplasma->density[1];
+    xhii = htot > 0.0 ? xplasma->density[1] / htot : 0.0;
+
+    for (partner = 1; partner <= 20; partner++)
+    {
+      if (partner == 2)
+        continue;
+      lower_n = partner < 2 ? partner : 2;
+      upper_n = partner < 2 ? 2 : partner;
+      lower_conf = find_h_config_by_level (lower_n);
+      upper_conf = find_h_config_by_level (upper_n);
+      if (lower_conf < 0 || upper_conf < 0)
+        continue;
+
+      partner_den = den_config (xplasma, find_h_config_by_level (partner));
+      rad_to2 = rad_from2 = coll_to2 = coll_from2 = bare_to2 = bare_from2 = 0.0;
+      for (j = 0; j < nlines; j++)
+      {
+        line_ptr = &line[j];
+        if (line_ptr->nconfigl != lower_conf || line_ptr->nconfigu != upper_conf)
+          continue;
+
+        bbu_index = -1;
+        for (k = 0; k < xconfig[lower_conf].n_bbu_jump; k++)
+          if (xconfig[lower_conf].bbu_jump[k] == j)
+            bbu_index = k;
+        if (bbu_index < 0)
+          continue;
+
+        beta = line_escape_factor (line_ptr, xplasma);
+        rate_up = b12 (line_ptr) * mplasma->jbar_old[xconfig[lower_conf].bbu_indx_first + bbu_index];
+        rate_down = a21 (line_ptr) * beta;
+        if (partner < 2)
+        {
+          rad_to2 += partner_den * rate_up;
+          rad_from2 += n2den * rate_down;
+          coll_to2 += partner_den * macro_bb_coll_exc_rate (line_ptr, xplasma);
+          coll_from2 += n2den * macro_bb_coll_deexc_rate (line_ptr, xplasma);
+          bare_to2 += 0.0;
+          bare_from2 += n2den * a21 (line_ptr);
+        }
+        else
+        {
+          rad_from2 += n2den * rate_up;
+          rad_to2 += partner_den * rate_down;
+          coll_from2 += n2den * macro_bb_coll_exc_rate (line_ptr, xplasma);
+          coll_to2 += partner_den * macro_bb_coll_deexc_rate (line_ptr, xplasma);
+          bare_from2 += 0.0;
+          bare_to2 += partner_den * a21 (line_ptr);
+        }
+      }
+
+      fprintf (fptr, "%9.3e %9.3e %4d %8d %9.3e %9.3e %9.3e %4d %11.4e",
+               wmain[nwind].r, wmain[nwind].rcen, i, xplasma->converge_whole, xplasma->t_e, ne, xhii, partner, n2den);
+      fprintf (fptr, " %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e",
+               partner_den, rad_to2, rad_from2, rad_to2 - rad_from2, coll_to2, coll_from2,
+               coll_to2 - coll_from2, bare_to2, bare_from2);
+      fprintf (fptr, " %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e\n",
+               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    }
+
+    bf_rec_sp = bf_rec_st = bf_rec_3b = bf_ion_ph = bf_ion_coll = two_from2 = 0.0;
+    for (j = 0; j < xconfig[n2conf].n_bfu_jump; j++)
+    {
+      iph = xconfig[n2conf].bfu_jump[j];
+      cont_ptr = &phot_top[iph];
+      upper_conf = cont_ptr->uplev;
+      upper_den = den_config (xplasma, upper_conf);
+      bf_ion_ph += n2den * mplasma->gamma_old[xconfig[n2conf].bfu_indx_first + j];
+      bf_ion_coll += n2den * q_ioniz (cont_ptr, xplasma->t_e) * ne;
+      bf_rec_st += upper_den * mplasma->alpha_st_old[xconfig[n2conf].bfu_indx_first + j] * ne;
+      bfd_index = -1;
+      for (k = 0; k < xconfig[upper_conf].n_bfd_jump; k++)
+        if (xconfig[upper_conf].bfd_jump[k] == iph)
+          bfd_index = k;
+      if (bfd_index >= 0)
+      {
+        bf_rec_sp += upper_den * mplasma->recomb_sp[xconfig[upper_conf].bfd_indx_first + bfd_index] * ne;
+        bf_rec_3b += upper_den * q_recomb (cont_ptr, xplasma->t_e) * ne * ne;
+      }
+    }
+    j = two_photon_process_for_upper (n2conf);
+    if (j >= 0)
+      two_from2 = n2den * two_photon_rate (j);
+
+    fprintf (fptr, "%9.3e %9.3e %4d %8d %9.3e %9.3e %9.3e %4d %11.4e",
+             wmain[nwind].r, wmain[nwind].rcen, i, xplasma->converge_whole, xplasma->t_e, ne, xhii, 0, n2den);
+    fprintf (fptr, " %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e",
+             xplasma->density[1], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    fprintf (fptr, " %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e %11.4e\n",
+             bf_rec_sp, bf_rec_st, bf_rec_3b, bf_ion_ph, bf_ion_coll,
+             bf_rec_sp + bf_rec_st + bf_rec_3b - bf_ion_ph - bf_ion_coll, two_from2);
+  }
+
+  fclose (fptr);
+  return (0);
+}
+
+
 int
 create_h_source_bf_table (ndom, rootname)
      int ndom;
      char rootname[];
 {
   char filename[LINELENGTH];
-  const char *srcname[H_BF_DIAG_SOURCES] = { "2ph", "bb", "brems", "diffuse", "other" };
+  const char *srcname[H_BF_DIAG_SOURCES] = { "entry_abs_n1", "entry_abs_n2", "entry_abs_n3", "entry_abs_n4plus", "entry_abs_other" };
   int i, j, ilev, isource, nstart, ndim2, nwind, nplasma, conf;
   double volume, density, threshold, gamma, gamma_e, ion, heat, sum_gamma, standard_gamma;
   FILE *fptr;
@@ -1247,7 +1576,7 @@ create_h_source_bf_table (ndom, rootname)
   snprintf (filename, sizeof (filename), "%s.H.source_bf.txt", rootname);
   if ((fptr = fopen (filename, "w")) == NULL)
     return (-1);
-  fprintf (fptr, "# Source classes: 2ph; pristine central blackbody; pristine central brems; macro-processed/wind diffuse; other.\n");
+  fprintf (fptr, "# Absorption transition that first injects a packet into its current H(n=1) free-bound recycling chain.\n");
   fprintf (fptr, "# ion is population-weighted [s^-1 cell^-1]; heat is photoelectron heating [erg s^-1 cell^-1].\n");
   fprintf (fptr, "# gamma_srcsum is the current-cycle path estimator; gamma_solver is gamma_old used by the solver.\n");
   fprintf (fptr, "# Their ratio need not be unity when the solver substitutes a fitted/dilute-field estimator.\n");

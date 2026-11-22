@@ -26,7 +26,10 @@
 #include <sys/stat.h>
 
 #include "atomic.h"
+int ablate_electron_scattering = 0;
+int ablate_h1_ground_bf = 0;
 #include "sirocco.h"
+#include "toy_diag.h"
 
 
 /**********************************************************/
@@ -878,6 +881,21 @@ fixed concentration file. \n\
     }
   }
 
+  ablate_electron_scattering = 0;
+  ablate_h1_ground_bf = 0;
+  if (rdpar_keyword_exists ("@Ablation.electron_scattering"))
+  {
+    strcpy (answer, "on");
+    ablate_electron_scattering = rdchoice ("@Ablation.electron_scattering(on,off)", "0,1", answer);
+  }
+  if (rdpar_keyword_exists ("@Ablation.HI_ground_continuum"))
+  {
+    strcpy (answer, "on");
+    ablate_h1_ground_bf = rdchoice ("@Ablation.HI_ground_continuum(on,off)", "0,1", answer);
+  }
+  Log ("Experimental ablation: electron scattering disabled=%d; HI ground continuum disabled=%d.\n",
+       ablate_electron_scattering, ablate_h1_ground_bf);
+
   geo.h1_two_photon_emission = TRUE;
   if (rdpar_keyword_exists ("@Hydrogen.two_photon_emission"))
   {
@@ -893,6 +911,7 @@ fixed concentration file. \n\
     }
   }
 
+  toy_diag_options ();
   if (hminus_get_runtime_options () != 0)
   {
     Error ("Unable to initialize H- runtime options and data\n");

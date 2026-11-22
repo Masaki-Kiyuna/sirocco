@@ -100,6 +100,12 @@ init_dummy_phot (p)
   p->origin = p->origin_orig = PTYPE_DUMMY;
   p->emission_process = EMISSION_PROCESS_UNSET;
   p->emission_config = -1;
+  p->root_emission_process = EMISSION_PROCESS_UNSET;
+  p->root_emission_config = -1;
+  p->hfb1_entry_process = EMISSION_PROCESS_UNSET;
+  p->hfb1_entry_config = -1;
+  p->hfb1_entry_nres = NRES_NOT_SET;
+  p->hfb1_entry_grid = -1;
   reset_two_photon_bf_provenance (p);
   p->np = -1;
   p->tau = p->ds = 0;
@@ -155,6 +161,12 @@ stuff_phot (pin, pout)
   pout->grid = pin->grid;
   pout->emission_process = pin->emission_process;
   pout->emission_config = pin->emission_config;
+  pout->root_emission_process = pin->root_emission_process;
+  pout->root_emission_config = pin->root_emission_config;
+  pout->hfb1_entry_process = pin->hfb1_entry_process;
+  pout->hfb1_entry_config = pin->hfb1_entry_config;
+  pout->hfb1_entry_nres = pin->hfb1_entry_nres;
+  pout->hfb1_entry_grid = pin->hfb1_entry_grid;
   pout->two_photon_bf_absorptions = pin->two_photon_bf_absorptions;
   pout->two_photon_first_bf_level = pin->two_photon_first_bf_level;
   pout->two_photon_first_bf_energy = pin->two_photon_first_bf_energy;

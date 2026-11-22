@@ -26,6 +26,7 @@
 
 #include "atomic.h"
 #include "sirocco.h"
+#include "toy_diag.h"
 
 /**********************************************************/
 /**
@@ -406,6 +407,7 @@ calculate_ionization (restart_stat)
     }
 #endif
 
+    toy_diag_commit ();
     if (modes.save_rng)
     {
       save_gsl_rng_state ();

@@ -94,6 +94,12 @@ define_phot (p, f1, f2, nphot_tot, ioniz_or_extract, iwind, freq_sampling)
   {
     p[n].emission_process = EMISSION_PROCESS_OTHER;
     p[n].emission_config = -1;
+    p[n].root_emission_process = EMISSION_PROCESS_OTHER;
+    p[n].root_emission_config = -1;
+    p[n].hfb1_entry_process = EMISSION_PROCESS_UNSET;
+    p[n].hfb1_entry_config = -1;
+    p[n].hfb1_entry_nres = NRES_NOT_SET;
+    p[n].hfb1_entry_grid = -1;
     reset_two_photon_bf_provenance (&p[n]);
   }
 

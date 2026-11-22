@@ -26,6 +26,7 @@
 
 #include "atomic.h"
 #include "sirocco.h"
+#include "toy_diag.h"
 
 
 /* A couple of external things for use in the routines for computing gamma's below. */
@@ -38,14 +39,31 @@ double temp_ext_rad;            //radiation temperature passed externally
 static int
 h_bf_source_class (PhotPtr p)
 {
-  if (p->emission_process == EMISSION_PROCESS_TWO_PHOTON)
-    return 0;
-  if (p->nmacro == 0 && p->emission_process == EMISSION_PROCESS_CENTRAL_BB)
-    return 1;
-  if (p->nmacro == 0 && p->emission_process == EMISSION_PROCESS_CENTRAL_BREMS)
-    return 2;
-  if (p->nmacro > 0 || p->origin_orig == PTYPE_WIND || p->origin == PTYPE_WIND || p->origin == PTYPE_WIND_MATOM)
-    return 3;
+  int n, nres, config;
+
+  nres = p->hfb1_entry_nres;
+
+  /* Diagnostic split by the process that originally generated the packet,
+     before any subsequent bound-free recycling.  Keep five classes so old
+     windsave files remain restart-compatible. */
+  if (nres_is_bf (nres))
+  {
+    config = phot_top[nres - NLINES - 1].nlev;
+    if (config >= 0 && config < nlevels_macro && xconfig[config].z == 1 && xconfig[config].istate == 1)
+    {
+      n = (int) floor (xconfig[config].q_num + 0.5);
+      if (n < 1)
+        n = xconfig[config].ilv;
+      if (n == 1)
+        return 0;
+      if (n == 2)
+        return 1;
+      if (n == 3)
+        return 2;
+      if (n >= 4)
+        return 3;
+    }
+  }
   return 4;
 }
 
@@ -119,6 +137,7 @@ bf_estimators_increment (one, p, ds)
 
   update_banded_estimators (xplasma, p, ds, p->w, ndom);
   update_flux_estimators (xplasma, p, ds, p->w, ndom);
+  toy_diag_path (xplasma, p, ds);
 
 
   /* check that j and ave freq give sensible numbers */
@@ -183,6 +202,7 @@ bf_estimators_increment (one, p, ds)
         mplasma->alpha_st[xconfig[llvl].bfu_indx_first + m] += exponential / freq_av;
 
         mplasma->gamma_e[xconfig[llvl].bfu_indx_first + m] += y / ft;
+        toy_diag_bf (xplasma, llvl, freq_av, ft, y);
 
         /* Passive source-origin split for H I n=1--5. */
         if (xconfig[llvl].z == 1 && xconfig[llvl].istate == 1)
@@ -650,6 +670,9 @@ normalise_macro_estimators (PlasmaPtr xplasma)
       /* normalise jbar. Note that this uses the cell volume rather than the filled volume */
 
       line_freq = line[xconfig[i].bbu_jump[j]].freq;
+      toy_diag_jbar (xplasma, xconfig[i].bbu_indx_first + j,
+                     mplasma->jbar[xconfig[i].bbu_indx_first + j] * VLIGHT / 4. / PI / invariant_volume_time / line_freq,
+                     stimfac);
       mplasma->jbar_old[xconfig[i].bbu_indx_first + j] =
         mplasma->jbar[xconfig[i].bbu_indx_first + j] * VLIGHT * stimfac / 4. / PI / invariant_volume_time / line_freq;
       mplasma->jbar[xconfig[i].bbu_indx_first + j] = 0.0;

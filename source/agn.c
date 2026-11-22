@@ -499,6 +499,7 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
     {
       p[i].freq = planck (t, freqmin, freqmax);
       p[i].emission_process = EMISSION_PROCESS_CENTRAL_BB;
+      p[i].root_emission_process = EMISSION_PROCESS_CENTRAL_BB;
     }
     else if (spectype == SPECTYPE_UNIFORM)
     {
@@ -517,6 +518,7 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
     {
       p[i].freq = get_rand_brem (freqmin, freqmax);
       p[i].emission_process = EMISSION_PROCESS_CENTRAL_BREMS;
+      p[i].root_emission_process = EMISSION_PROCESS_CENTRAL_BREMS;
     }
     else if (spectype == SPECTYPE_BB_BREM)
     {
@@ -529,12 +531,14 @@ photo_gen_agn (p, r, alpha, weight, f1, f2, spectype, istart, nphot)
       {
         p[i].freq = planck (geo.bb_brem_temp_bb, freqmin, freqmax);
         p[i].emission_process = EMISSION_PROCESS_CENTRAL_BB;
+        p[i].root_emission_process = EMISSION_PROCESS_CENTRAL_BB;
       }
       else
       {
         geo.brem_temp = geo.bb_brem_temp_brem;
         p[i].freq = get_rand_brem (freqmin, freqmax);
         p[i].emission_process = EMISSION_PROCESS_CENTRAL_BREMS;
+        p[i].root_emission_process = EMISSION_PROCESS_CENTRAL_BREMS;
       }
     }
     else if (spectype == SPECTYPE_MONO)

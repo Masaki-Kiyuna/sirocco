@@ -18,6 +18,10 @@ extern int rank_global;       /**<Global variable which holds the rank of the ac
 extern int verbosity;          /**< verbosity level for printing out information. 0 low, 10 is high
                                  */
 
+/* Runtime-only ablations; deliberately outside checkpoint structures. */
+extern int ablate_electron_scattering;
+extern int ablate_h1_ground_bf;
+
 /* Integer representations for the logging level in Python's logging functions,
  * as defined in xlog.c */
 #define SHOW_PARALLEL	     1
@@ -1453,9 +1457,20 @@ typedef struct photon
     EMISSION_PROCESS_CENTRAL_BB = 3,
     EMISSION_PROCESS_CENTRAL_BREMS = 4,
     EMISSION_PROCESS_HMINUS_RA = 5,
-    EMISSION_PROCESS_HMINUS_FF = 6
+    EMISSION_PROCESS_HMINUS_FF = 6,
+    EMISSION_PROCESS_MACRO_BF = 7,
+    EMISSION_PROCESS_MACRO_BB = 8,
+    EMISSION_PROCESS_WIND_FF = 9,
+    EMISSION_PROCESS_WIND_FB = 10,
+    EMISSION_PROCESS_WIND_BB = 11
   } emission_process;          /**< Physical process that originally created this packet's energy lineage. */
   int emission_config;         /**< Macro configuration that created a tagged continuum packet, or -1. */
+  int root_emission_process;   /**< Emission process at packet generation; never overwritten during transport. */
+  int root_emission_config;    /**< Configuration at packet generation, or -1. */
+  int hfb1_entry_process;      /**< Last non-H(n=1) free-bound process before entering an H(n=1) bf recycling chain. */
+  int hfb1_entry_config;       /**< Configuration associated with hfb1_entry_process, or -1. */
+  int hfb1_entry_nres;         /**< Interaction that converted the packet into H(n=1) free-bound emission. */
+  int hfb1_entry_grid;         /**< Cell where the current H(n=1) bf recycling chain began. */
 #define TWO_PHOTON_BF_LEVEL_BINS 6
   int two_photon_bf_absorptions;       /**< Number of bound-free absorptions after two-photon continuum creation. */
   int two_photon_first_bf_level;       /**< H level of the first bf absorption; 0 is other and -1 is none. */

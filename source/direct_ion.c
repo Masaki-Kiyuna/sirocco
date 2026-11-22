@@ -393,6 +393,8 @@ q_ioniz (cont_ptr, electron_temperature)
   int nion;
 
   /* these next two quantities only used in Hydrogen, no Dere data case */
+  if (ablation_ground_continuum_disabled (cont_ptr))
+    return (0.0);
   u0 = cont_ptr->freq[0] * H_OVER_K / electron_temperature;
   nion = cont_ptr->nion;
   gaunt = 0.1 * ion[nion].z;    //for now - from Mihalas for hydrogen and Helium
@@ -453,6 +455,9 @@ q_recomb (cont_ptr, electron_temperature)
   double coeff;
   double gaunt, u0;
   int nion;
+
+  if (ablation_ground_continuum_disabled (cont_ptr))
+    return (0.0);
 
   nion = cont_ptr->nion;
   u0 = cont_ptr->freq[0] * H_OVER_K / electron_temperature;

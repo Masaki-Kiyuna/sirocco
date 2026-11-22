@@ -405,6 +405,8 @@ photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
 
       if (np < photstart + ptype[nplasma][FREE_FREE])
       {
+        p[np].emission_process = EMISSION_PROCESS_WIND_FF;
+        p[np].emission_config = -1;
         p[np].freq = one_ff (&plasmamain[nplasma], freqmin, freqmax);
         if (p[np].freq <= 0.0)
         {
@@ -415,10 +417,14 @@ photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
       }
       else if (np < photstart + ptype[nplasma][FREE_FREE] + ptype[nplasma][FREE_BOUND])
       {
+        p[np].emission_process = EMISSION_PROCESS_WIND_FB;
+        p[np].emission_config = -1;
         p[np].freq = one_fb (&plasmamain[nplasma], freqmin, freqmax);
       }
       else if (np < photstart + ptype[nplasma][FREE_FREE] + ptype[nplasma][FREE_BOUND] + ptype[nplasma][BOUND_BOUND])
       {
+        p[np].emission_process = EMISSION_PROCESS_WIND_BB;
+        p[np].emission_config = -1;
 
         /* fill the lin_ptr->pow array. This must be done because it is not stored for all cells.
            The if statement is intended to prevent recalculating the power if more than one
@@ -469,6 +475,9 @@ photo_gen_wind (p, weight, freqmin, freqmax, photstart, nphot)
         p[np].nres = NRES_HMINUS_FF;
         p[np].emission_process = EMISSION_PROCESS_HMINUS_FF;
       }
+
+      p[np].root_emission_process = p[np].emission_process;
+      p[np].root_emission_config = p[np].emission_config;
 
       p[np].w = weight;
       get_random_location (plasmamain[nplasma].nwind, p[np].x);

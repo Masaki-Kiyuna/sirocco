@@ -158,7 +158,7 @@ h1_omukai2001_line_applies (line_ptr)
 }
 
 
-static double
+double
 h1_omukai2001_deexc_coeff_e (line_ptr, t)
      struct lines *line_ptr;
      double t;
@@ -188,7 +188,7 @@ h1_omukai2001_deexc_coeff_e (line_ptr, t)
 }
 
 
-static double
+double
 h1_omukai2001_deexc_coeff_h (line_ptr, t)
      struct lines *line_ptr;
      double t;
@@ -685,6 +685,8 @@ matom (p, nres, escape)
     n++;
   }
   n = n - 1;
+  p->emission_process = EMISSION_PROCESS_OTHER;
+  p->emission_config = -1;
   /* n now identifies the jump that occurs - now set nres for the return value. */
   if (n < nbbd)
   {                             /* bb downwards jump */
@@ -707,6 +709,8 @@ matom (p, nres, escape)
       *escape = TRUE;
       *nres = line[xconfig[uplvl].bbd_jump[n]].where_in_list;
       p->freq = line[xconfig[uplvl].bbd_jump[n]].freq;
+      p->emission_process = EMISSION_PROCESS_MACRO_BB;
+      p->emission_config = uplvl;
     }
     else
     {
@@ -732,6 +736,8 @@ matom (p, nres, escape)
       *escape = TRUE;
       *nres = xconfig[uplvl].bfd_jump[n - nbbd] + NLINES + 1;
       p->freq = matom_select_bf_freq (one, xconfig[uplvl].bfd_jump[n - nbbd]);
+      p->emission_process = EMISSION_PROCESS_MACRO_BF;
+      p->emission_config = cont_ptr->nlev;
 
     }
     else
@@ -1289,6 +1295,8 @@ kpkt (p, nres, escape, mode)
         *escape = TRUE;
 
         p->freq = matom_select_bf_freq (xwind, i);
+        p->emission_process = EMISSION_PROCESS_MACRO_BF;
+        p->emission_config = phot_top[i].nlev;
 
         /* if the cross-section corresponds to a simple ion (macro_info == FALSE)
            or if we are treating all ions as simple, then adopt the total emissivity
@@ -1789,6 +1797,8 @@ emit_matom (w, p, nres, upper, freq_min, freq_max)
       n++;
     }
     n = n - 1;
+    p->emission_process = EMISSION_PROCESS_OTHER;
+    p->emission_config = -1;
 
     /* n now identifies the jump that occurs - now set nres for the return value. */
 
@@ -1797,12 +1807,16 @@ emit_matom (w, p, nres, upper, freq_min, freq_max)
       line_ptr = &line[xconfig[uplvl].bbd_jump[n]];
       *nres = line[xconfig[uplvl].bbd_jump[n]].where_in_list;
       p->freq = xfreq = line[xconfig[uplvl].bbd_jump[n]].freq;
+      p->emission_process = EMISSION_PROCESS_MACRO_BB;
+      p->emission_config = uplvl;
     }
     else if (n < (nbbd + nbfd))
     {
       *nres = xconfig[uplvl].bfd_jump[n - nbbd] + NLINES + 1;
       xfreq = matom_select_bf_freq (one, xconfig[uplvl].bfd_jump[n - nbbd]);
       p->freq = xfreq;
+      p->emission_process = EMISSION_PROCESS_MACRO_BF;
+      p->emission_config = phot_top[xconfig[uplvl].bfd_jump[n - nbbd]].nlev;
     }
 
     else if (n < (nbbd + nbfd + ntwo_photon))

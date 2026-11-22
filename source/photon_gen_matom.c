@@ -216,6 +216,8 @@ photo_gen_kpkt (p, weight, photstart, nphot)
     p[n].line_res = nres_is_line (nres) ? nres : NRES_NOT_SET;
     p[n].emission_process = pp.emission_process;
     p[n].emission_config = pp.emission_config;
+    p[n].root_emission_process = pp.emission_process;
+    p[n].root_emission_config = pp.emission_config;
     p[n].two_photon_bf_absorptions = pp.two_photon_bf_absorptions;
     p[n].two_photon_first_bf_level = pp.two_photon_first_bf_level;
     p[n].two_photon_first_bf_energy = pp.two_photon_first_bf_energy;
@@ -410,6 +412,8 @@ photo_gen_matom (p, weight, photstart, nphot)
     p[n].line_res = nres_is_line (nres) ? nres : NRES_NOT_SET;
     p[n].emission_process = pp.emission_process;
     p[n].emission_config = pp.emission_config;
+    p[n].root_emission_process = pp.emission_process;
+    p[n].root_emission_config = pp.emission_config;
     p[n].two_photon_bf_absorptions = pp.two_photon_bf_absorptions;
     p[n].two_photon_first_bf_level = pp.two_photon_first_bf_level;
     p[n].two_photon_first_bf_energy = pp.two_photon_first_bf_energy;

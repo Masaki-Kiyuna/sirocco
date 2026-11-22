@@ -778,6 +778,15 @@ kappa_ff (xplasma, freq)
  *
  **********************************************************/
 
+/* Remove both directions of HI(1s)<->HII, not the bound-bound network.
+ * Ground is identified by the atomic configuration, never a global index. */
+int
+ablation_ground_continuum_disabled (struct topbase_phot *cont_ptr)
+{
+  return ablate_h1_ground_bf && cont_ptr->z == 1 && cont_ptr->istate == 1
+    && cont_ptr->macro_info == 1 && xconfig[cont_ptr->nlev].ilv == 1;
+}
+
 double
 sigma_phot (x_ptr, freq)
      struct topbase_phot *x_ptr;
@@ -788,6 +797,9 @@ sigma_phot (x_ptr, freq)
   double frac, fbot, ftop;
   int linterp ();
   int nlast;
+
+  if (ablation_ground_continuum_disabled (x_ptr))
+    return (0.0);
 
   if (freq < x_ptr->freq[0])
     return (0.0);               // Since this was below threshold

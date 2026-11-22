@@ -460,6 +460,7 @@ double tb_exp(double freq, void *params);
 double radiation(PhotPtr p, double ds);
 double kappa_ff(PlasmaPtr xplasma, double freq);
 double sigma_phot(struct topbase_phot *x_ptr, double freq);
+int ablation_ground_continuum_disabled(struct topbase_phot *cont_ptr);
 double den_config(PlasmaPtr xplasma, int nconf);
 double pop_kappa_ff_array(void);
 double mean_intensity(PlasmaPtr xplasma, double freq, int mode);

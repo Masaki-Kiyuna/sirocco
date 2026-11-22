@@ -18,6 +18,7 @@
 
 #include "atomic.h"
 #include "sirocco.h"
+#include "toy_diag.h"
 
 /**********************************************************/
 /**
@@ -85,6 +86,7 @@ wind_update (WindPtr w)
 #endif
 
   flux_persist_scale = 0.5;     //The amount of the latest flux that gets added into the persistent flux
+  toy_diag_begin ();
 
   for (n_plasma = my_nmin; n_plasma < my_nmax; ++n_plasma)
   {
@@ -149,6 +151,7 @@ wind_update (WindPtr w)
     }
 
     /* Calculate the densities in various ways depending on the ioniz_mode */
+    toy_diag_cell (&plasmamain[n_plasma], 0);
     Log ("XXXXX  updating %3d %3d\n", geo.wcycle, n_plasma);
     ion_abundances (&plasmamain[n_plasma], geo.ioniz_mode);
     if (modes.hminus_enabled)
@@ -159,7 +162,9 @@ wind_update (WindPtr w)
       plasmamain[n_plasma].ne = get_ne_plasma (&plasmamain[n_plasma]);
       hminus_update_conservation (&plasmamain[n_plasma]);
     }
+    toy_diag_cell (&plasmamain[n_plasma], 1);
   }
+  toy_diag_end ();
 
   /*This is the end of the update loop that is parallised. We now need to exchange data between the tasks. */
 

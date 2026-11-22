@@ -734,6 +734,13 @@ f_matom_emit_accelerate (xplasma, upper, freq_min, freq_max)
   {
     cont_ptr = &phot_top[xconfig[uplvl].bfd_jump[n]];   //pointer to continuum
 
+    /* A removed continuum has no band fraction (its full integral is zero). */
+    if (ablation_ground_continuum_disabled (cont_ptr))
+    {
+      eprbs[n + nbbd] = 0.0;
+      continue;
+    }
+
     /* If the edge is above the frequency range we are interested in then we need not consider this
        bf process. */
     sp_rec_rate = alpha_sp (cont_ptr, xplasma, 0);
@@ -938,6 +945,9 @@ f_kpkt_emit_accelerate (xplasma, freq_min, freq_max)
   for (i = 0; i < nphot_total; i++)
   {
     cont_ptr = &phot_top[i];    //pointer to continuum
+
+    if (ablation_ground_continuum_disabled (cont_ptr))
+      continue;
 
     /* If the edge is above the frequency range we are interested in then we need not consider this
        bf process. */

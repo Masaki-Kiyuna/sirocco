@@ -168,6 +168,8 @@ kappa_comp (xplasma, freq)
 
 
   sigma = compton_alpha (freq) * THOMPSON;      //the energy exchange cross section
+  if (ablate_electron_scattering)
+    return (0.0);
 
   x = (sigma * PLANCK) / (MELEC * VLIGHT * VLIGHT);
   x *= xplasma->ne * freq;
@@ -214,6 +216,8 @@ kappa_ind_comp (xplasma, freq)
   /* Obtain a model for the mean intensity - we call this with mode=2, which means
      that if we have not yet completed a cycle, dont return a dilute blackbody
      estimate if we are in PL mode. */
+  if (ablate_electron_scattering)
+    return (0.0);
   J = mean_intensity (xplasma, freq, MEAN_INTENSITY_ESTIMATOR_MODEL);
 
 
@@ -552,6 +556,9 @@ total_comp (one, t_e)
   double x, f1, f2;
   int nplasma, j;
 
+  if (ablate_electron_scattering)
+    return (0.0);
+
 
   nplasma = one->nplasma;
   xplasma = &plasmamain[nplasma];
@@ -624,6 +631,9 @@ klein_nishina (nu)
   double x;                     //h nu / kt
   double x1, x2, x3, x4;        //variables to store intermediate results.
   double kn;                    // the final cross section
+
+  if (ablate_electron_scattering)
+    return (0.0);
 
   kn = THOMPSON;
   x1 = x2 = x3 = x4 = 0.0;

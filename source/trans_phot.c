@@ -50,6 +50,7 @@
 
 #include "atomic.h"
 #include "sirocco.h"
+#include "toy_diag.h"
 
 long n_lost_to_dfudge = 0;
 
@@ -455,6 +456,7 @@ trans_phot_single (WindPtr w, PhotPtr p, int iextract)
 
       if (current_nres == NRES_ES)
       {
+        toy_diag_es (&pp, n_grid);
         stuff_phot (&pp, &pextract);
       }
 
