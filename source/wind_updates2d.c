@@ -58,7 +58,7 @@ wind_update (WindPtr w)
   double apsum, aausum, abstot; //Absorbed photon energy from PI and auger
   double flux_persist_scale;
   double volume;
-  double dt_r, dt_e;
+  double dt_r, dt_e, t_e_prev;
   double t_r_ave_old, t_r_ave, t_e_ave_old, t_e_ave;
   int nmax_r, nmax_e;
   int nwind;
@@ -153,6 +153,7 @@ wind_update (WindPtr w)
     /* Calculate the densities in various ways depending on the ioniz_mode */
     toy_diag_cell (&plasmamain[n_plasma], 0);
     Log ("XXXXX  updating %3d %3d\n", geo.wcycle, n_plasma);
+    t_e_prev = plasmamain[n_plasma].t_e;
     ion_abundances (&plasmamain[n_plasma], geo.ioniz_mode);
     if (modes.hminus_enabled)
     {
@@ -161,6 +162,11 @@ wind_update (WindPtr w)
        * before communicating this cell. */
       plasmamain[n_plasma].ne = get_ne_plasma (&plasmamain[n_plasma]);
       hminus_update_conservation (&plasmamain[n_plasma]);
+    }
+    if (geo.rt_mode == RT_MODE_MACRO && geo.macro_simple == FALSE && geo.macro_ioniz_mode == MACRO_IONIZ_MODE_ESTIMATORS)
+    {
+      rescale_alpha_st_estimators (&plasmamain[n_plasma], t_e_prev);
+      check_stimulated_recomb (&plasmamain[n_plasma]);
     }
     toy_diag_cell (&plasmamain[n_plasma], 1);
   }
@@ -764,8 +770,8 @@ init_macro_rad_properties (void)
       {
         macromain[n_plasma].gamma[xconfig[macro_level].bfu_indx_first + k] = 0.0;
         macromain[n_plasma].gamma_e[xconfig[macro_level].bfu_indx_first + k] = 0.0;
-        macromain[n_plasma].alpha_st[xconfig[macro_level].bfd_indx_first + k] = 0.0;
-        macromain[n_plasma].alpha_st_e[xconfig[macro_level].bfd_indx_first + k] = 0.0;
+        macromain[n_plasma].alpha_st[xconfig[macro_level].bfu_indx_first + k] = 0.0;
+        macromain[n_plasma].alpha_st_e[xconfig[macro_level].bfu_indx_first + k] = 0.0;
       }
     }
   }

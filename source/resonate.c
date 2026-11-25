@@ -1061,33 +1061,28 @@ scatter (p, nres, nnscat)
 
         /* Need to compute the factor needed for the stimulated term. */
 
-        stim_fact = den_config (xplasma, ulvl) / den_config (xplasma, llvl) / xplasma->ne;
+        stim_fact = den_config (xplasma, llvl) > 0.0 ? den_config (xplasma, ulvl) / den_config (xplasma, llvl) * xplasma->ne : 0.0;
 
         gamma_twiddle =
           mplasma->gamma_old[xconfig[llvl].bfu_indx_first + m] - (mplasma->alpha_st_old[xconfig[llvl].bfu_indx_first + m] * stim_fact);
         gamma_twiddle_e =
           mplasma->gamma_e_old[xconfig[llvl].bfu_indx_first + m] - (mplasma->alpha_st_e_old[xconfig[llvl].bfu_indx_first + m] * stim_fact);
 
-        /* Both gamma_twiddles must be greater that zero if this is going to work. If they
-           are zero then it's probably because this is the first iteration and so the've not
-           been computed yet. For that first iteration k-packets will be ignored. If the
-           gamma_twiddles are negative then something has gone wrong.
-         */
-
-        prob_kpkt = 0.0;        // initialise value
-        if (gamma_twiddle > 0 && gamma_twiddle_e > 0)
+        if (!isfinite (gamma_twiddle) || !isfinite (gamma_twiddle_e))
         {
-          prob_kpkt = 1. - gamma_twiddle / gamma_twiddle_e;
-        }
-        else if (gamma_twiddle == 0 && gamma_twiddle_e == 0)
-        {
-          prob_kpkt = 0.;
-        }
-        else
-        {
-          Error ("scatter (resonate.c): a gamma_twiddle is negative. Abort.\n");
+          Error ("scatter: nonfinite net BF rates cell=%d continuum=%d gamma=%.17e gamma_e=%.17e factor=%.17e\n", xplasma->nplasma, *nres-NLINES-1, gamma_twiddle, gamma_twiddle_e, stim_fact);
           Exit (0);
         }
+        if (gamma_twiddle < 0.0 || gamma_twiddle_e < 0.0)
+        {
+          static unsigned long negative_count = 0;
+          negative_count++;
+          if ((negative_count & (negative_count - 1)) == 0)
+            Log ("BF_NET_CLIP count=%lu cycle=%d cell=%d continuum=%d net=%.9e net_e=%.9e\n", negative_count, geo.wcycle, xplasma->nplasma, *nres-NLINES-1, gamma_twiddle, gamma_twiddle_e);
+          gamma_twiddle = fmax (gamma_twiddle, 0.0);
+          gamma_twiddle_e = fmax (gamma_twiddle_e, 0.0);
+        }
+        prob_kpkt = gamma_twiddle_e > 0.0 ? fmin (fmax (1.0 - gamma_twiddle / gamma_twiddle_e, 0.0), 1.0) : 0.0;
 
         /* Having got here we have calculated the probability of a k-packet
            being created. Now either make a k-packet or excite a macro atom. */

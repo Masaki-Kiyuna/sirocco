@@ -164,6 +164,26 @@ cpu_solve_matrix (double *a_matrix, double *b_vector, int matrix_size, double *x
     /* get the element of the vector we want to check */
     test_val = gsl_vector_get (test_vector, i);
 
+    /* The passive H2 response has dimensional populations, so a fixed
+       absolute tolerance on Ax-b is not meaningful. Check backward error;
+       the molecular caller also checks positivity and physical residuals. */
+    if (nplasma == -1)
+    {
+      int j;
+      double scale = fabs (b_vector[i]);
+      double residual = fabs (test_val - b_vector[i]);
+      for (j = 0; j < matrix_size; j++)
+        scale += fabs (gsl_matrix_get (test_matrix, i, j) * gsl_vector_get (solution_vector, j));
+      if (!isfinite (scale) || !isfinite (residual) || (scale > 0.0 && residual / scale > 1.e-10) || (scale == 0.0 && residual != 0.0))
+      {
+        if (n_error == 0)
+          Error ("Solve_matrix: passive H2 backward residual fails row %i residual %.6e scale %.6e\n", i, residual, scale);
+        gsl_err = 3;
+        n_error++;
+      }
+      continue;
+    }
+
     /* b_vector is (1, 0, 0, 0 ...) when we do matom rates. test_val is normally something like
        1e-16 if it's supposed to be 0. We have a different error check if b_vector[i] is 0 */
     if (b_vector[i] > 0.0)

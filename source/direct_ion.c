@@ -202,7 +202,7 @@ total_di (one, t_e)
 
   for (n = 0; n < nions; n++)
   {
-    if (ion[n].dere_di_flag)
+    if (ion[n].dere_di_flag && !(geo.rt_mode == RT_MODE_MACRO && geo.macro_simple == FALSE && ion[n].macro_info == TRUE))
     {
       cooling_rate += xplasma->vol * xplasma->ne * xplasma->density[n] * di_coeffs[n] * dere_di_rate[ion[n].nxderedi].xi * EV2ERGS;
     }

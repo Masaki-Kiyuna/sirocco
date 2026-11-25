@@ -1213,7 +1213,7 @@ passive_molecules_update_all (void)
     }
   }
   Log ("Passive H2 update: cells=%d shielding_iterations=%d max_relative_change=%.3e\n",
-       count, iteration + 1, max_change);
+       count, iteration < max_shielding_iterations ? iteration + 1 : max_shielding_iterations, max_change);
   free (order);
   return iteration < max_shielding_iterations ? 0 : 1;
 }

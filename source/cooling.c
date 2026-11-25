@@ -408,9 +408,11 @@ wind_cooling (void)
   for (n_plasma = n_start; n_plasma < n_stop; ++n_plasma)
   {
     cool_tot_cell = cooling (&plasmamain[n_plasma], plasmamain[n_plasma].t_e);
-    if (cool_tot_cell < 0)
+    /* Negative adiabatic cooling is physical compressional heating. */
+    if (cool_tot_cell < 0 && !(plasmamain[n_plasma].cool_adiabatic < 0 &&
+                                cool_tot_cell - plasmamain[n_plasma].cool_adiabatic >= 0))
     {
-      Error ("wind_cooling: xtotal emission %8.4e is < 0!\n", cool_tot_cell);
+      Error ("wind_cooling: net cooling %8.4e is < 0 in cell %d (adiabatic %8.4e)\n", cool_tot_cell, n_plasma, plasmamain[n_plasma].cool_adiabatic);
     }
   }
 

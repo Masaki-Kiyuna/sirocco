@@ -198,7 +198,7 @@ calc_matom_matrix (xplasma, matom_matrix)
 
       /* first let us take care of the situation where the lower level is zero or close to zero */
       lower_density = den_config (xplasma, cont_ptr->nlev);
-      if (lower_density >= DENSITY_PHOT_MIN)
+      if (lower_density > 0.0)
       {
         density_ratio = den_config (xplasma, cont_ptr->uplev) / lower_density;
       }

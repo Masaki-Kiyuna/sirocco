@@ -1040,7 +1040,7 @@ double
 comp_cool_integrand (double nu, void *params)
 {
   double value;
-  value = THOMPSON * compton_beta (nu) * mean_intensity (xplasma, nu, MEAN_INTENSITY_ESTIMATOR_MODEL);
+  value = THOMPSON * compton_alpha (nu) * compton_beta (nu) * mean_intensity (xplasma, nu, MEAN_INTENSITY_ESTIMATOR_MODEL);
   return (value);
 }
 

@@ -709,7 +709,6 @@ normalise_macro_estimators (PlasmaPtr xplasma)
   /* finally, check if we have any places where stimulated recombination wins over
      photoionization */
 
-  check_stimulated_recomb (xplasma);
 
   /* Now that we have estimators, set the flag to use them for the level populations */
 
@@ -1057,6 +1056,46 @@ bb_simple_heat (xplasma, p, tau_sobolev, nn)
  * \f$\alpha_{st}n_e*\frac{n_u}{n_l} > \gamma\f$
  *
  **********************************************************/
+
+int
+rescale_alpha_st_estimators (PlasmaPtr xplasma, double t_old)
+{
+  int i, j, k;
+  double ft, nu_eff, scale;
+  struct topbase_phot *cont_ptr;
+  MacroPtr mplasma = &macromain[xplasma->nplasma];
+  if (t_old <= 0.0 || t_old == xplasma->t_e)
+    return 0;
+  if (modes.hminus_enabled && xplasma->hminus.ra_stim_rate_old > 0.0)
+  {
+    ft = 0.7542 * EV2ERGS / PLANCK;
+    nu_eff = xplasma->hminus.ra_stim_e_rate_old > 0.0 ?
+      ft * xplasma->hminus.ra_stim_e_rate_old / xplasma->hminus.ra_stim_rate_old : ft;
+    scale = pow (t_old / xplasma->t_e, 1.5) * exp (-H_OVER_K * (nu_eff - ft) * (1. / xplasma->t_e - 1. / t_old));
+    xplasma->hminus.ra_stim_rate_old *= scale;
+    xplasma->hminus.ra_stim_e_rate_old *= scale;
+  }
+  for (i = 0; i < nlte_levels; i++)
+    for (j = 0; j < xconfig[i].n_bfu_jump; j++)
+    {
+      k = xconfig[i].bfu_indx_first + j;
+      cont_ptr = &phot_top[xconfig[i].bfu_jump[j]];
+      ft = cont_ptr->freq[0];
+      if (ft < 7.5e12 || ft > 5e18)
+      {
+        mplasma->alpha_st_old[k] = get_alpha_st (cont_ptr, xplasma);
+        mplasma->alpha_st_e_old[k] = get_alpha_st_e (cont_ptr, xplasma);
+      }
+      else if (mplasma->alpha_st_old[k] > 0.0)
+      {
+        nu_eff = mplasma->alpha_st_e_old[k] > 0.0 ? ft * mplasma->alpha_st_e_old[k] / mplasma->alpha_st_old[k] : ft;
+        scale = pow (t_old / xplasma->t_e, 1.5) * exp (-H_OVER_K * (nu_eff - ft) * (1. / xplasma->t_e - 1. / t_old));
+        mplasma->alpha_st_old[k] *= scale;
+        mplasma->alpha_st_e_old[k] *= scale;
+      }
+    }
+  return 0;
+}
 
 int
 check_stimulated_recomb (xplasma)

@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <float.h>
 
 #include "atomic.h"
 #include "sirocco.h"
@@ -91,9 +92,10 @@ dvwind_ds_cmf (p)
     double v1[3], v2[3], dv[3], diff[3];
     double ds;
     /* choose a small distance which is dependent on the cell size */
-    vsub (pp.x, wmain[pp.grid].x, diff);
     vsub (wmain[pp.grid].xcen, wmain[pp.grid].x, diff);
     ds = 0.000001 * length (diff);
+    if (ds < 100.0 * DBL_EPSILON * length (pp.x))
+      ds = fmin (100.0 * DBL_EPSILON * length (pp.x), 0.1 * length (diff));
     /* calculate the velocity at the position of the photon */
     /* note we use model velocity, which could potentially be slow,
        but avoids interpolating (see #118) */
@@ -432,9 +434,9 @@ get_dvds_max (p)
 
   for (nn = 0; nn < nelem; nn++)
   {
-    dvds += wmain[nnn[nn]].dvds_max;
+    dvds = fmax (dvds, wmain[nnn[nn]].dvds_max);
   }
 
-  return dvds;
+  return 1.05 * dvds;
 
 }

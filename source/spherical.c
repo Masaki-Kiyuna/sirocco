@@ -81,8 +81,8 @@ spherical_ds_in_cell (ndom, p)
 
   if (smax == VERY_BIG && s == VERY_BIG)
   {
-    Error ("spherical: ds_in_cell: s and smax returning VERY_BIG in cell %i nudging photon %d by DFUDGE\n", p->grid, p->np);
-    return (DFUDGE);
+    Error ("spherical: ds_in_cell: s and smax returning VERY_BIG in cell %i for photon %d; pushing past outer boundary\n", p->grid, p->np);
+    return (ds_to_sphere (zdom[ndom].wind_x[ix + 1] + DFUDGE, p));
   }
 
 
